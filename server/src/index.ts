@@ -1,3 +1,4 @@
+import "dotenv/config";
 import Fastify from "fastify";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
@@ -9,7 +10,7 @@ import { userRoutes } from "./routes/user.routes.js";
 import { documentRoutes } from "./routes/document.routes.js";
 import { userDocumentRoutes } from "./routes/user-document.routes.js";
 import { authRoutes } from "./routes/auth.routes.js";
-import "dotenv/config";
+import { settingsRoutes } from "./routes/settings.routes.js";
 import * as path from "path";
 import * as fs from "fs";
 
@@ -66,6 +67,10 @@ async function main() {
           name: "user-documents",
           description: "User-Document assignment endpoints",
         },
+        {
+          name: "settings",
+          description: "User settings endpoints",
+        },
       ],
       components: {
         securitySchemes: {
@@ -121,6 +126,9 @@ async function main() {
 
   // Register user-document routes
   await app.register(userDocumentRoutes, { prefix: "/api/v1" });
+
+  // Register settings routes
+  await app.register(settingsRoutes, { prefix: "/api/v1" });
 
   // Health check endpoint
   app.get("/health", {

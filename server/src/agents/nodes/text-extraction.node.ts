@@ -100,6 +100,7 @@ export async function textExtractionNode(
     const llm = new ChatOpenAI({
       model: "gpt-4o",
       temperature: 0,
+      apiKey: state.openaiApiKey || undefined,
     });
 
     const response = await llm.invoke(

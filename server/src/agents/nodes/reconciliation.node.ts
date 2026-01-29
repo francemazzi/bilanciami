@@ -22,7 +22,7 @@ Return the merged invoice data as JSON.`;
 export async function reconciliationNode(
   state: InvoiceExtractionStateType
 ): Promise<Partial<InvoiceExtractionStateType>> {
-  const { textExtraction, visionExtraction, fileName } = state;
+  const { textExtraction, visionExtraction, fileName, openaiApiKey } = state;
 
 
   // If only one extraction succeeded, use that
@@ -57,6 +57,7 @@ export async function reconciliationNode(
     const llm = new ChatOpenAI({
       model: "gpt-4o",
       temperature: 0,
+      apiKey: openaiApiKey || undefined,
     });
 
     const response = await llm.invoke(

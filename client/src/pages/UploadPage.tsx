@@ -1,15 +1,44 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { PdfDropzone } from '@/components/upload/PdfDropzone';
 import { uploadPdfs } from '@/api/invoices';
+import { getSettings } from '@/api/settings';
 import { toast } from 'sonner';
+import { useSettingsStore } from '@/stores/settings.store';
+import { AlertCircle, Settings } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import type { ExtractionResponse } from '@/api/types';
 
 export function UploadPage() {
   const navigate = useNavigate();
   const [isUploading, setIsUploading] = useState(false);
+  const [isCheckingKey, setIsCheckingKey] = useState(true);
+  const { hasOpenaiApiKey, setSettings, setLoading } = useSettingsStore();
+
+  useEffect(() => {
+    checkApiKey();
+  }, []);
+
+  const checkApiKey = async () => {
+    setIsCheckingKey(true);
+    setLoading(true);
+    try {
+      const settings = await getSettings();
+      setSettings(settings.hasOpenaiApiKey, settings.openaiApiKeyLastChars);
+    } catch {
+      // Ignore errors, will show warning
+    } finally {
+      setIsCheckingKey(false);
+      setLoading(false);
+    }
+  };
 
   const handleUpload = async (files: File[]) => {
+    if (!hasOpenaiApiKey) {
+      toast.error('Configura la chiave API OpenAI per continuare');
+      return;
+    }
+
     setIsUploading(true);
     try {
       const data: ExtractionResponse = await uploadPdfs(files);
@@ -36,6 +65,16 @@ export function UploadPage() {
     }
   };
 
+  if (isCheckingKey) {
+    return (
+      <div className="container max-w-2xl py-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container max-w-2xl py-8">
       <div className="mb-8">
@@ -46,7 +85,34 @@ export function UploadPage() {
         </p>
       </div>
 
-      <PdfDropzone onFilesSelected={handleUpload} isUploading={isUploading} />
+      {!hasOpenaiApiKey && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-amber-800 font-medium">
+                Chiave API OpenAI non configurata
+              </p>
+              <p className="text-sm text-amber-700 mt-1">
+                Per utilizzare l'estrazione automatica delle fatture, devi prima configurare
+                la tua chiave API OpenAI nelle impostazioni.
+              </p>
+              <Button asChild variant="outline" size="sm" className="mt-3">
+                <Link to="/settings">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Vai alle impostazioni
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <PdfDropzone
+        onFilesSelected={handleUpload}
+        isUploading={isUploading}
+        disabled={!hasOpenaiApiKey}
+      />
 
       <div className="mt-8 p-4 bg-muted rounded-lg">
         <h3 className="font-semibold mb-2">Formati supportati</h3>

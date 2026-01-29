@@ -1,11 +1,12 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { extractInvoice } from "../agents/invoice-graph.js";
 import type { Invoice } from "../types/invoice.js";
-import { optionalAuthMiddleware } from "../middleware/auth.middleware.js";
+import { authMiddleware } from "../middleware/auth.middleware.js";
 import { prisma } from "../lib/prisma.js";
 import { savePdf } from "../services/storage.service.js";
 import { generateDocumentPath } from "../lib/document-path.js";
 import { Prisma } from "../../generated/prisma/client.js";
+import { getDecryptedOpenaiApiKey } from "../services/settings.service.js";
 
 interface ExtractionResult {
   file_name: string;
@@ -24,13 +25,14 @@ export async function invoiceRoutes(app: FastifyInstance) {
   app.post(
     "/invoices/extract",
     {
-      preHandler: optionalAuthMiddleware,
+      preHandler: authMiddleware,
       schema: {
         summary: "Extract invoice data from PDF files",
         description:
-          "Upload one or more PDF files to extract structured invoice data using AI-powered text and vision extraction. If authenticated, documents are automatically saved.",
+          "Upload one or more PDF files to extract structured invoice data using AI-powered text and vision extraction. Requires authentication and OpenAI API key configured in settings.",
         consumes: ["multipart/form-data"],
         tags: ["invoices"],
+        security: [{ bearerAuth: [] }],
         response: {
           200: {
             description: "Successful extraction",
@@ -56,15 +58,31 @@ export async function invoiceRoutes(app: FastifyInstance) {
               total_processed: { type: "number" },
               successful: { type: "number" },
               failed: { type: "number" },
+              error: { type: "string" },
             },
           },
         },
       },
     },
-    async (request: FastifyRequest) => {
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const userId = request.user!.id;
+
+      // Get user's OpenAI API key
+      const userApiKey = await getDecryptedOpenaiApiKey(userId);
+
+      if (!userApiKey) {
+        return reply.status(400).send({
+          results: [],
+          total_processed: 0,
+          successful: 0,
+          failed: 0,
+          error:
+            "Chiave API OpenAI non configurata. Vai alle impostazioni per aggiungerla.",
+        });
+      }
+
       const parts = request.parts();
       const results: ExtractionResult[] = [];
-      const userId = request.user?.id;
 
       for await (const part of parts) {
         if (part.type === "file") {
@@ -79,7 +97,7 @@ export async function invoiceRoutes(app: FastifyInstance) {
             try {
               app.log.info(`Processing file: ${fileName}`);
 
-              const extractionResult = await extractInvoice(buffer, fileName);
+              const extractionResult = await extractInvoice(buffer, fileName, userApiKey);
 
               const result: ExtractionResult = {
                 file_name: fileName,

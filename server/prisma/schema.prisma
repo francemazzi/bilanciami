@@ -23,8 +23,23 @@ model User {
 
   documents UserOnDocument[]
   sessions  Session[]
+  settings  UserSettings?
 
   @@map("users")
+}
+
+model UserSettings {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  openaiApiKeyEncrypted String?
+  openaiApiKeyIv        String?
+  openaiApiKeyTag       String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
 }
 
 model Session {

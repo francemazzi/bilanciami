@@ -17,6 +17,8 @@ services:
     volumes:
       # Mount dataset folder for PDF access (optional, for testing)
       - ./dataset:/app/dataset:ro
+      # Persist uploaded PDFs
+      - ./uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy

@@ -9,9 +9,11 @@ import { formatFileSize } from '@/lib/formatters';
 interface PdfDropzoneProps {
   onFilesSelected: (files: File[]) => void;
   isUploading: boolean;
+  disabled?: boolean;
 }
 
-export function PdfDropzone({ onFilesSelected, isUploading }: PdfDropzoneProps) {
+export function PdfDropzone({ onFilesSelected, isUploading, disabled = false }: PdfDropzoneProps) {
+  const isDisabled = isUploading || disabled;
   const [files, setFiles] = useState<File[]>([]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -26,7 +28,7 @@ export function PdfDropzone({ onFilesSelected, isUploading }: PdfDropzoneProps) 
     accept: { 'application/pdf': ['.pdf'] },
     multiple: true,
     maxFiles: 10,
-    disabled: isUploading,
+    disabled: isDisabled,
   });
 
   const removeFile = (index: number) => {
@@ -51,7 +53,7 @@ export function PdfDropzone({ onFilesSelected, isUploading }: PdfDropzoneProps) 
           'p-12 border-2 border-dashed cursor-pointer transition-colors',
           isDragActive && 'border-primary bg-primary/5',
           !isDragActive && 'border-muted-foreground/25 hover:border-primary',
-          isUploading && 'opacity-50 cursor-not-allowed'
+          isDisabled && 'opacity-50 cursor-not-allowed'
         )}
       >
         <input {...getInputProps()} />
@@ -76,7 +78,7 @@ export function PdfDropzone({ onFilesSelected, isUploading }: PdfDropzoneProps) 
               variant="ghost"
               size="sm"
               onClick={clearFiles}
-              disabled={isUploading}
+              disabled={isDisabled}
             >
               Rimuovi tutti
             </Button>
@@ -101,7 +103,7 @@ export function PdfDropzone({ onFilesSelected, isUploading }: PdfDropzoneProps) 
                   variant="ghost"
                   size="icon"
                   onClick={() => removeFile(index)}
-                  disabled={isUploading}
+                  disabled={isDisabled}
                   className="flex-shrink-0"
                 >
                   <X className="h-4 w-4" />
@@ -112,7 +114,7 @@ export function PdfDropzone({ onFilesSelected, isUploading }: PdfDropzoneProps) 
 
           <Button
             onClick={handleUpload}
-            disabled={isUploading || files.length === 0}
+            disabled={isDisabled || files.length === 0}
             className="w-full mt-4"
             size="lg"
           >

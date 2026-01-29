@@ -68,14 +68,20 @@ export function getInvoiceGraph() {
  *
  * @param pdfBuffer - The PDF file as a Buffer
  * @param fileName - The original filename of the PDF
+ * @param openaiApiKey - Optional OpenAI API key (uses user's key if provided)
  * @returns The extracted invoice data and metadata
  */
-export async function extractInvoice(pdfBuffer: Buffer, fileName: string) {
+export async function extractInvoice(
+  pdfBuffer: Buffer,
+  fileName: string,
+  openaiApiKey?: string | null
+) {
   const graph = getInvoiceGraph();
 
   const result = await graph.invoke({
     pdfBuffer,
     fileName,
+    openaiApiKey: openaiApiKey || null,
   });
 
   return {

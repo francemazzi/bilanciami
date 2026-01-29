@@ -107,6 +107,7 @@ export async function visionExtractionNode(
     const llm = new ChatOpenAI({
       model: "gpt-4o",
       temperature: 0,
+      apiKey: state.openaiApiKey || undefined,
     });
 
     // Build image messages for all pages

@@ -9,6 +9,10 @@ export const InvoiceExtractionState = Annotation.Root({
   // Input
   pdfBuffer: Annotation<Buffer>,
   fileName: Annotation<string>,
+  openaiApiKey: Annotation<string | null>({
+    default: () => null,
+    reducer: (_, newVal) => newVal,
+  }),
 
   // Intermediate results from parallel extraction
   textContent: Annotation<string | null>({

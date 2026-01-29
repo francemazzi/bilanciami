@@ -6,6 +6,8 @@ import {
   refreshAccessToken,
   logoutUser,
   getUserById,
+  updateUserProfile,
+  type UpdateProfileInput,
 } from "../services/auth.service.js";
 import { authMiddleware } from "../middleware/auth.middleware.js";
 
@@ -297,6 +299,80 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       return reply.send({ user });
+    }
+  );
+
+  // Update profile
+  app.put(
+    "/auth/profile",
+    {
+      preHandler: authMiddleware,
+      schema: {
+        tags: ["auth"],
+        summary: "Update user profile",
+        security: [{ bearerAuth: [] }],
+        body: {
+          type: "object",
+          properties: {
+            name: { type: "string", minLength: 2 },
+            email: { type: "string", format: "email" },
+            currentPassword: { type: "string" },
+            newPassword: { type: "string", minLength: 8 },
+          },
+        },
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              user: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  email: { type: "string" },
+                  name: { type: "string" },
+                  createdAt: { type: "string" },
+                },
+              },
+            },
+          },
+          400: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+              message: { type: "string" },
+            },
+          },
+          401: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+              message: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    async (
+      request: FastifyRequest<{ Body: UpdateProfileInput }>,
+      reply: FastifyReply
+    ) => {
+      if (!request.user) {
+        return reply.status(401).send({
+          error: "Unauthorized",
+          message: "Non autenticato",
+        });
+      }
+
+      try {
+        const user = await updateUserProfile(request.user.id, request.body);
+        return reply.send({ user });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Errore durante l'aggiornamento";
+        return reply.status(400).send({
+          error: "Bad Request",
+          message,
+        });
+      }
     }
   );
 }

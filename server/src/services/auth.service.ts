@@ -186,3 +186,70 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
 
   return user;
 }
+
+export interface UpdateProfileInput {
+  name?: string;
+  email?: string;
+  currentPassword?: string;
+  newPassword?: string;
+}
+
+export async function updateUserProfile(
+  userId: string,
+  input: UpdateProfileInput
+): Promise<AuthUser> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new Error("Utente non trovato");
+  }
+
+  // Check if email is being changed and if it's already taken
+  if (input.email && input.email !== user.email) {
+    const existingUser = await prisma.user.findUnique({
+      where: { email: input.email },
+    });
+    if (existingUser) {
+      throw new Error("Email già in uso");
+    }
+  }
+
+  // If changing password, verify current password
+  if (input.newPassword) {
+    if (!input.currentPassword) {
+      throw new Error("Password attuale richiesta per cambiare la password");
+    }
+    const isValidPassword = await bcrypt.compare(input.currentPassword, user.passwordHash);
+    if (!isValidPassword) {
+      throw new Error("Password attuale non corretta");
+    }
+  }
+
+  // Prepare update data
+  const updateData: { name?: string; email?: string; passwordHash?: string } = {};
+
+  if (input.name) {
+    updateData.name = input.name;
+  }
+  if (input.email) {
+    updateData.email = input.email;
+  }
+  if (input.newPassword) {
+    updateData.passwordHash = await bcrypt.hash(input.newPassword, SALT_ROUNDS);
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: updateData,
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      createdAt: true,
+    },
+  });
+
+  return updatedUser;
+}
