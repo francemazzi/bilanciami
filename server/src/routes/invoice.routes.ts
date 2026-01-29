@@ -1,6 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { extractInvoice } from "../agents/invoice-graph.js";
 import type { Invoice } from "../types/invoice.js";
+import { optionalAuthMiddleware } from "../middleware/auth.middleware.js";
+import { prisma } from "../lib/prisma.js";
+import { savePdf } from "../services/storage.service.js";
+import { generateDocumentPath } from "../lib/document-path.js";
+import { Prisma } from "../../generated/prisma/client.js";
 
 interface ExtractionResult {
   file_name: string;
@@ -8,6 +13,7 @@ interface ExtractionResult {
   invoice?: Invoice;
   errors?: string[];
   confidence?: number;
+  document_id?: string;
 }
 
 export async function invoiceRoutes(app: FastifyInstance) {
@@ -18,11 +24,13 @@ export async function invoiceRoutes(app: FastifyInstance) {
   app.post(
     "/invoices/extract",
     {
+      preHandler: optionalAuthMiddleware,
       schema: {
         summary: "Extract invoice data from PDF files",
         description:
-          "Upload one or more PDF files to extract structured invoice data using AI-powered text and vision extraction",
+          "Upload one or more PDF files to extract structured invoice data using AI-powered text and vision extraction. If authenticated, documents are automatically saved.",
         consumes: ["multipart/form-data"],
+        tags: ["invoices"],
         response: {
           200: {
             description: "Successful extraction",
@@ -41,6 +49,7 @@ export async function invoiceRoutes(app: FastifyInstance) {
                       items: { type: "string" },
                     },
                     confidence: { type: "number" },
+                    document_id: { type: "string" },
                   },
                 },
               },
@@ -55,6 +64,7 @@ export async function invoiceRoutes(app: FastifyInstance) {
     async (request: FastifyRequest) => {
       const parts = request.parts();
       const results: ExtractionResult[] = [];
+      const userId = request.user?.id;
 
       for await (const part of parts) {
         if (part.type === "file") {
@@ -64,17 +74,15 @@ export async function invoiceRoutes(app: FastifyInstance) {
             part.filename?.toLowerCase().endsWith(".pdf")
           ) {
             const buffer = await part.toBuffer();
+            const fileName = part.filename || "unknown.pdf";
 
             try {
-              app.log.info(`Processing file: ${part.filename}`);
+              app.log.info(`Processing file: ${fileName}`);
 
-              const extractionResult = await extractInvoice(
-                buffer,
-                part.filename || "unknown.pdf"
-              );
+              const extractionResult = await extractInvoice(buffer, fileName);
 
-              results.push({
-                file_name: part.filename || "unknown.pdf",
+              const result: ExtractionResult = {
+                file_name: fileName,
                 success: !!extractionResult.invoice,
                 invoice: extractionResult.invoice || undefined,
                 errors:
@@ -82,18 +90,99 @@ export async function invoiceRoutes(app: FastifyInstance) {
                     ? extractionResult.errors
                     : undefined,
                 confidence: extractionResult.confidence,
-              });
+              };
+
+              // Save document to database if user is authenticated and extraction was successful
+              if (userId && extractionResult.invoice) {
+                try {
+                  const invoice = extractionResult.invoice;
+                  const supplierName = invoice.supplier?.name || "Unknown Supplier";
+                  const customerName = invoice.customer?.name || "Unknown Customer";
+                  const extractionDate = new Date();
+                  const filePath = generateDocumentPath(extractionDate, customerName, supplierName);
+
+                  // Parse dates from invoice
+                  let documentDate: Date | null = null;
+                  let dueDate: Date | null = null;
+
+                  if (invoice.document_date) {
+                    const parsed = new Date(invoice.document_date);
+                    if (!isNaN(parsed.getTime())) {
+                      documentDate = parsed;
+                    }
+                  }
+
+                  if (invoice.payment_details?.due_date) {
+                    const parsed = new Date(invoice.payment_details.due_date);
+                    if (!isNaN(parsed.getTime())) {
+                      dueDate = parsed;
+                    }
+                  }
+
+                  // Create document in database
+                  const document = await prisma.document.create({
+                    data: {
+                      extractionDate,
+                      customerName,
+                      supplierName,
+                      filePath,
+                      fileName,
+                      mimeType: "application/pdf",
+                      fileSize: buffer.length,
+                      metadata: invoice as unknown as Prisma.InputJsonValue,
+                      invoiceId: invoice.invoice_id || null,
+                      documentDate,
+                      dueDate,
+                      totalAmount: invoice.totals?.total_amount
+                        ? new Prisma.Decimal(invoice.totals.total_amount)
+                        : null,
+                    },
+                  });
+
+                  // Save PDF to disk
+                  const pdfStoragePath = await savePdf(buffer, userId, document.id, fileName);
+
+                  // Update document with PDF storage path
+                  await prisma.document.update({
+                    where: { id: document.id },
+                    data: { pdfStoragePath },
+                  });
+
+                  // Associate document with user
+                  await prisma.userOnDocument.create({
+                    data: {
+                      userId,
+                      documentId: document.id,
+                      role: "owner",
+                    },
+                  });
+
+                  result.document_id = document.id;
+                  app.log.info(`Document saved with ID: ${document.id}`);
+                } catch (saveError) {
+                  const errorMessage =
+                    saveError instanceof Error ? saveError.message : String(saveError);
+                  app.log.error(`Failed to save document: ${errorMessage}`);
+                  // Don't fail the extraction if save fails
+                  if (!result.errors) {
+                    result.errors = [];
+                  }
+                  result.errors.push(`Document save failed: ${errorMessage}`);
+                }
+              }
+
+              results.push(result);
 
               app.log.info(
-                `Completed processing: ${part.filename} (confidence: ${extractionResult.confidence})`
+                `Completed processing: ${fileName} (confidence: ${extractionResult.confidence})`
               );
             } catch (error) {
               const errorMessage =
                 error instanceof Error ? error.message : String(error);
-              app.log.error(`Failed to process ${part.filename}: ${errorMessage}`);
+              app.log.error(`Failed to process ${fileName}: ${errorMessage}`);
 
               results.push({
-                file_name: part.filename || "unknown.pdf",
+                file_name: fileName,
                 success: false,
                 errors: [`Processing failed: ${errorMessage}`],
               });

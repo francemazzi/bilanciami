@@ -14,34 +14,64 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   documents UserOnDocument[]
+  sessions  Session[]
 
   @@map("users")
 }
 
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  refreshToken String   @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshToken])
+  @@map("sessions")
+}
+
 model Document {
-  id             String   @id @default(uuid())
-  extractionDate DateTime @default(now())
+  id             String    @id @default(uuid())
+  extractionDate DateTime  @default(now())
   customerName   String
   supplierName   String
-  filePath       String   // Path: <extractionDate>/<customerName>-<supplierName>/
+  filePath       String    // Path: <extractionDate>/<customerName>-<supplierName>/
   fileName       String
-  mimeType       String   @default("application/pdf")
+  mimeType       String    @default("application/pdf")
   fileSize       Int?
   metadata       Json?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+
+  // Campi denormalizzati per query/ordinamento
+  invoiceId      String?   // Numero fattura estratto
+  documentDate   DateTime? // Data documento
+  dueDate        DateTime? // Data scadenza pagamento
+  totalAmount    Decimal?  @db.Decimal(10, 2)
+
+  // Storage PDF originale
+  pdfStoragePath String?   // Path al file PDF salvato su disco
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   users UserOnDocument[]
 
   @@index([extractionDate])
   @@index([customerName, supplierName])
+  @@index([dueDate])
+  @@index([supplierName])
   @@map("documents")
 }
 

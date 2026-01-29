@@ -117,14 +117,15 @@ export async function userRoutes(app: FastifyInstance) {
     }
   );
 
-  // POST /users - Crea un nuovo utente
+  // POST /users - Deprecato, usare /auth/register
   app.post(
     "/users",
     {
       schema: {
-        summary: "Crea un nuovo utente",
-        description: "Registra un nuovo utente nel sistema",
+        summary: "Crea un nuovo utente (DEPRECATO)",
+        description: "Questo endpoint è deprecato. Usa POST /api/v1/auth/register per registrare un nuovo utente.",
         tags: ["users"],
+        deprecated: true,
         body: {
           type: "object",
           properties: {
@@ -134,45 +135,21 @@ export async function userRoutes(app: FastifyInstance) {
           required: ["email", "name"],
         },
         response: {
-          201: {
-            type: "object",
-            properties: {
-              id: { type: "string" },
-              email: { type: "string" },
-              name: { type: "string" },
-              createdAt: { type: "string" },
-              updatedAt: { type: "string" },
-            },
-          },
-          400: {
+          410: {
             type: "object",
             properties: {
               error: { type: "string" },
+              message: { type: "string" },
             },
           },
         },
       },
     },
-    async (request: FastifyRequest<{ Body: CreateUserBody }>, reply: FastifyReply) => {
-      const { email, name } = request.body;
-
-      try {
-        const user = await prisma.user.create({
-          data: { email, name },
-        });
-
-        return reply.status(201).send(user);
-      } catch (error: unknown) {
-        if (
-          error &&
-          typeof error === "object" &&
-          "code" in error &&
-          error.code === "P2002"
-        ) {
-          return reply.status(400).send({ error: "Email già registrata" });
-        }
-        throw error;
-      }
+    async (_request: FastifyRequest<{ Body: CreateUserBody }>, reply: FastifyReply) => {
+      return reply.status(410).send({
+        error: "Gone",
+        message: "Questo endpoint è deprecato. Usa POST /api/v1/auth/register per registrare un nuovo utente.",
+      });
     }
   );
 

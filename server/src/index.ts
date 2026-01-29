@@ -2,10 +2,13 @@ import Fastify from "fastify";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import multipart from "@fastify/multipart";
+import cookie from "@fastify/cookie";
+import cors from "@fastify/cors";
 import { invoiceRoutes } from "./routes/invoice.routes.js";
 import { userRoutes } from "./routes/user.routes.js";
 import { documentRoutes } from "./routes/document.routes.js";
 import { userDocumentRoutes } from "./routes/user-document.routes.js";
+import { authRoutes } from "./routes/auth.routes.js";
 import "dotenv/config";
 import * as path from "path";
 import * as fs from "fs";
@@ -44,6 +47,10 @@ async function main() {
       ],
       tags: [
         {
+          name: "auth",
+          description: "Authentication endpoints",
+        },
+        {
           name: "invoices",
           description: "Invoice extraction endpoints",
         },
@@ -60,6 +67,15 @@ async function main() {
           description: "User-Document assignment endpoints",
         },
       ],
+      components: {
+        securitySchemes: {
+          bearerAuth: {
+            type: "http",
+            scheme: "bearer",
+            bearerFormat: "JWT",
+          },
+        },
+      },
     },
   });
 
@@ -72,6 +88,17 @@ async function main() {
     },
   });
 
+  // Register CORS
+  await app.register(cors, {
+    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+    credentials: true,
+  });
+
+  // Register cookie plugin
+  await app.register(cookie, {
+    secret: process.env.COOKIE_SECRET || "your-cookie-secret-change-in-production",
+  });
+
   // Register multipart for file uploads
   await app.register(multipart, {
     limits: {
@@ -79,6 +106,9 @@ async function main() {
       files: 10, // Max 10 files per request
     },
   });
+
+  // Register auth routes
+  await app.register(authRoutes, { prefix: "/api/v1" });
 
   // Register invoice routes
   await app.register(invoiceRoutes, { prefix: "/api/v1" });
@@ -120,6 +150,13 @@ async function main() {
     docs: "/docs",
     health: "/health",
     endpoints: {
+      auth: {
+        register: "POST /api/v1/auth/register",
+        login: "POST /api/v1/auth/login",
+        logout: "POST /api/v1/auth/logout",
+        refresh: "POST /api/v1/auth/refresh",
+        me: "GET /api/v1/auth/me",
+      },
       invoices: {
         extract: "POST /api/v1/invoices/extract",
         schema: "GET /api/v1/invoices/schema",
