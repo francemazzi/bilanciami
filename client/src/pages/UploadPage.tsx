@@ -24,7 +24,7 @@ export function UploadPage() {
     setLoading(true);
     try {
       const settings = await getSettings();
-      setSettings(settings.hasOpenaiApiKey, settings.openaiApiKeyLastChars);
+      setSettings(settings);
     } catch {
       // Ignore errors, will show warning
     } finally {

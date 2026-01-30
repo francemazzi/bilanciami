@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency, formatDate } from '@/lib/formatters';
+import { exportDocuments, type ExportFormat } from '@/lib/export';
+import { ExportDropdown } from './ExportDropdown';
 import type { Document } from '@/api/documents';
 
 // Helper per estrarre dueDate da metadata se non presente a livello root
@@ -62,6 +64,14 @@ export function DocumentsTable({ documents, onDocumentClick }: DocumentsTablePro
     );
   };
 
+  const handleExportAll = (format: ExportFormat) => {
+    exportDocuments(documents, format, 'tutti-i-documenti');
+  };
+
+  const handleExportFiltered = (format: ExportFormat) => {
+    exportDocuments(filteredAndSortedDocs, format, 'documenti-filtrati');
+  };
+
   const filteredAndSortedDocs = useMemo(() => {
     return documents
       .filter((doc) => {
@@ -118,21 +128,32 @@ export function DocumentsTable({ documents, onDocumentClick }: DocumentsTablePro
 
   return (
     <div className="space-y-4">
-      {/* Filtri */}
-      <div className="flex gap-4">
-        <input
-          type="text"
-          placeholder="Filtra per fornitore..."
-          value={filters.supplier}
-          onChange={(e) => setFilters((f) => ({ ...f, supplier: e.target.value }))}
-          className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-        <input
-          type="text"
-          placeholder="Filtra per cliente..."
-          value={filters.customer}
-          onChange={(e) => setFilters((f) => ({ ...f, customer: e.target.value }))}
-          className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      {/* Filtri + Export */}
+      <div className="flex justify-between items-center gap-4">
+        <div className="flex gap-4">
+          <input
+            type="text"
+            placeholder="Filtra per fornitore..."
+            value={filters.supplier}
+            onChange={(e) => setFilters((f) => ({ ...f, supplier: e.target.value }))}
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <input
+            type="text"
+            placeholder="Filtra per cliente..."
+            value={filters.customer}
+            onChange={(e) => setFilters((f) => ({ ...f, customer: e.target.value }))}
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+        <ExportDropdown
+          showBulkOptions
+          onExport={() => {}}
+          onExportAll={handleExportAll}
+          onExportFiltered={handleExportFiltered}
+          totalCount={documents.length}
+          filteredCount={filteredAndSortedDocs.length}
+          disabled={documents.length === 0}
         />
       </div>
 

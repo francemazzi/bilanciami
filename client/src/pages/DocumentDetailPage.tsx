@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getDocument, getDocumentPdfUrl, updateDocumentMetadata, type Document as DocType } from '@/api/documents';
 import { formatCurrency } from '@/lib/formatters';
+import { exportSingleDocument, type ExportFormat } from '@/lib/export';
+import { ExportDropdown } from '@/components/documents/ExportDropdown';
 import { useAuthStore } from '@/stores/auth.store';
 
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -127,6 +129,12 @@ export function DocumentDetailPage() {
     setIsEditing(false);
   };
 
+  const handleExport = (format: ExportFormat) => {
+    if (document) {
+      exportSingleDocument(document, format);
+    }
+  };
+
   const updateField = (path: string, value: unknown) => {
     setEditedMetadata((prev) => {
       if (!prev) return prev;
@@ -226,10 +234,13 @@ export function DocumentDetailPage() {
               </Button>
             </>
           ) : (
-            <Button onClick={() => setIsEditing(true)}>
-              <Edit className="mr-2 h-4 w-4" />
-              Modifica
-            </Button>
+            <>
+              <ExportDropdown onExport={handleExport} />
+              <Button onClick={() => setIsEditing(true)}>
+                <Edit className="mr-2 h-4 w-4" />
+                Modifica
+              </Button>
+            </>
           )}
         </div>
       </div>
