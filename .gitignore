@@ -1,6 +1,7 @@
 dataset
 node_modules
 uploads/
+groundtruth/
 
 # Environment files (contain secrets)
 .env
