@@ -5,6 +5,9 @@ echo ==========================================
 echo   Bilanciami - Installation Script
 echo ==========================================
 echo.
+echo If Windows asks to allow this script, choose "Run" or "Allow".
+echo Only ONE window should open. Please wait...
+echo.
 
 :: Get script directory
 set "SCRIPT_DIR=%~dp0"
@@ -105,9 +108,13 @@ if exist "%ENV_FILE%" (
     )
 )
 
-:: Generate encryption key using PowerShell
+:: Generate encryption key using PowerShell (hidden window to avoid extra console)
 echo Generating encryption key...
-for /f "delims=" %%a in ('powershell -Command "[System.BitConverter]::ToString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).Replace('-','')"') do set "ENCRYPTION_KEY=%%a"
+for /f "delims=" %%a in ('powershell -NoProfile -WindowStyle Hidden -Command "[System.BitConverter]::ToString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).Replace('-','')"') do set "ENCRYPTION_KEY=%%a"
+if not defined ENCRYPTION_KEY (
+    echo [WARNING] PowerShell key generation failed, using fallback...
+    set "ENCRYPTION_KEY=%RANDOM%%RANDOM%%RANDOM%%RANDOM%%RANDOM%%RANDOM%%RANDOM%%RANDOM%"
+)
 
 :: Write .env file
 (
