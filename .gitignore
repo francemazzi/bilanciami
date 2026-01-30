@@ -2,6 +2,7 @@ dataset
 node_modules
 uploads/
 groundtruth/
+data/
 
 # Environment files (contain secrets)
 .env
@@ -10,3 +11,10 @@ client/.env
 
 # Keep example files
 !.env.example
+
+# Build outputs
+server/dist/
+client/dist/
+
+# Generated code
+server/generated/

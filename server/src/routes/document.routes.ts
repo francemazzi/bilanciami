@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { Prisma } from "../../generated/prisma/client.js";
+import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { generateDocumentPath } from "../lib/document-path.js";
 import { getPdf, pdfExists } from "../services/storage.service.js";
@@ -659,7 +659,7 @@ export async function documentRoutes(app: FastifyInstance) {
       const invoice = metadata as Record<string, unknown>;
       let documentDate: Date | null = null;
       let dueDate: Date | null = null;
-      let totalAmount: Prisma.Decimal | null = null;
+      let totalAmount: number | null = null;
       let invoiceId: string | null = null;
       let supplierName: string | undefined;
       let customerName: string | undefined;
@@ -681,7 +681,7 @@ export async function documentRoutes(app: FastifyInstance) {
 
       const totals = invoice.totals as Record<string, unknown> | undefined;
       if (totals && typeof totals.total_amount === "number") {
-        totalAmount = new Prisma.Decimal(totals.total_amount);
+        totalAmount = totals.total_amount;
       }
 
       if (typeof invoice.invoice_id === "string") {

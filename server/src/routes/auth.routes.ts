@@ -67,7 +67,7 @@ export async function authRoutes(app: FastifyInstance) {
       request: FastifyRequest<{
         Body: { email: string; password: string; name: string };
       }>,
-      reply: FastifyReply
+      reply: FastifyReply,
     ) => {
       try {
         const validatedInput = registerSchema.parse(request.body);
@@ -75,24 +75,31 @@ export async function authRoutes(app: FastifyInstance) {
         const result = await registerUser(
           validatedInput,
           request.headers["user-agent"],
-          request.ip
+          request.ip,
         );
 
         // Set refresh token as httpOnly cookie
-        reply.setCookie(REFRESH_TOKEN_COOKIE, result.tokens.refreshToken, COOKIE_OPTIONS);
+        reply.setCookie(
+          REFRESH_TOKEN_COOKIE,
+          result.tokens.refreshToken,
+          COOKIE_OPTIONS,
+        );
 
         return reply.status(201).send({
           user: result.user,
           accessToken: result.tokens.accessToken,
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Errore durante la registrazione";
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Errore durante la registrazione";
         return reply.status(400).send({
           error: "Bad Request",
           message,
         });
       }
-    }
+    },
   );
 
   // Login
@@ -140,7 +147,7 @@ export async function authRoutes(app: FastifyInstance) {
       request: FastifyRequest<{
         Body: { email: string; password: string };
       }>,
-      reply: FastifyReply
+      reply: FastifyReply,
     ) => {
       try {
         const validatedInput = loginSchema.parse(request.body);
@@ -148,24 +155,29 @@ export async function authRoutes(app: FastifyInstance) {
         const result = await loginUser(
           validatedInput,
           request.headers["user-agent"],
-          request.ip
+          request.ip,
         );
 
         // Set refresh token as httpOnly cookie
-        reply.setCookie(REFRESH_TOKEN_COOKIE, result.tokens.refreshToken, COOKIE_OPTIONS);
+        reply.setCookie(
+          REFRESH_TOKEN_COOKIE,
+          result.tokens.refreshToken,
+          COOKIE_OPTIONS,
+        );
 
         return reply.send({
           user: result.user,
           accessToken: result.tokens.accessToken,
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Errore durante il login";
+        const message =
+          error instanceof Error ? error.message : "Errore durante il login";
         return reply.status(401).send({
           error: "Unauthorized",
           message,
         });
       }
-    }
+    },
   );
 
   // Refresh token
@@ -207,13 +219,14 @@ export async function authRoutes(app: FastifyInstance) {
 
         return reply.send(result);
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Errore durante il refresh";
+        const message =
+          error instanceof Error ? error.message : "Errore durante il refresh";
         return reply.status(401).send({
           error: "Unauthorized",
           message,
         });
       }
-    }
+    },
   );
 
   // Logout
@@ -244,7 +257,7 @@ export async function authRoutes(app: FastifyInstance) {
       reply.clearCookie(REFRESH_TOKEN_COOKIE, { path: "/" });
 
       return reply.send({ success: true });
-    }
+    },
   );
 
   // Get current user
@@ -299,7 +312,7 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       return reply.send({ user });
-    }
+    },
   );
 
   // Update profile
@@ -352,10 +365,7 @@ export async function authRoutes(app: FastifyInstance) {
         },
       },
     },
-    async (
-      request: FastifyRequest<{ Body: UpdateProfileInput }>,
-      reply: FastifyReply
-    ) => {
+    async (request: FastifyRequest, reply: FastifyReply) => {
       if (!request.user) {
         return reply.status(401).send({
           error: "Unauthorized",
@@ -364,15 +374,21 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       try {
-        const user = await updateUserProfile(request.user.id, request.body);
+        const user = await updateUserProfile(
+          request.user.id,
+          request.body as UpdateProfileInput,
+        );
         return reply.send({ user });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Errore durante l'aggiornamento";
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Errore durante l'aggiornamento";
         return reply.status(400).send({
           error: "Bad Request",
           message,
         });
       }
-    }
+    },
   );
 }

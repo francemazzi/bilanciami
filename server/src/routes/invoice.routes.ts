@@ -5,7 +5,7 @@ import { authMiddleware } from "../middleware/auth.middleware.js";
 import { prisma } from "../lib/prisma.js";
 import { savePdf } from "../services/storage.service.js";
 import { generateDocumentPath } from "../lib/document-path.js";
-import { Prisma } from "../../generated/prisma/client.js";
+import { Prisma } from "../../generated/prisma/client";
 import { getFullLLMSettings } from "../services/settings.service.js";
 import { testOllamaConnection } from "../services/llm.service.js";
 
@@ -167,9 +167,7 @@ export async function invoiceRoutes(app: FastifyInstance) {
                       invoiceId: invoice.invoice_id || null,
                       documentDate,
                       dueDate,
-                      totalAmount: invoice.totals?.total_amount
-                        ? new Prisma.Decimal(invoice.totals.total_amount)
-                        : null,
+                      totalAmount: invoice.totals?.total_amount ?? null,
                     },
                   });
 
