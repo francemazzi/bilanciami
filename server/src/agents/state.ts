@@ -1,5 +1,6 @@
 import { Annotation } from "@langchain/langgraph";
 import type { Invoice } from "../types/invoice.js";
+import type { LLMSettings } from "../types/llm-provider.js";
 
 // Using Record<string, unknown> for intermediate extraction results
 // since the Zod schema outputs nullable fields
@@ -9,7 +10,7 @@ export const InvoiceExtractionState = Annotation.Root({
   // Input
   pdfBuffer: Annotation<Buffer>,
   fileName: Annotation<string>,
-  openaiApiKey: Annotation<string | null>({
+  llmSettings: Annotation<LLMSettings | null>({
     default: () => null,
     reducer: (_, newVal) => newVal,
   }),

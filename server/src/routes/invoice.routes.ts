@@ -6,7 +6,8 @@ import { prisma } from "../lib/prisma.js";
 import { savePdf } from "../services/storage.service.js";
 import { generateDocumentPath } from "../lib/document-path.js";
 import { Prisma } from "../../generated/prisma/client.js";
-import { getDecryptedOpenaiApiKey } from "../services/settings.service.js";
+import { getFullLLMSettings } from "../services/settings.service.js";
+import { testOllamaConnection } from "../services/llm.service.js";
 
 interface ExtractionResult {
   file_name: string;
@@ -67,10 +68,11 @@ export async function invoiceRoutes(app: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const userId = request.user!.id;
 
-      // Get user's OpenAI API key
-      const userApiKey = await getDecryptedOpenaiApiKey(userId);
+      // Get user's LLM settings
+      const llmSettings = await getFullLLMSettings(userId);
 
-      if (!userApiKey) {
+      // Validate configuration based on provider
+      if (llmSettings.provider === "openai" && !llmSettings.openaiApiKey) {
         return reply.status(400).send({
           results: [],
           total_processed: 0,
@@ -79,6 +81,20 @@ export async function invoiceRoutes(app: FastifyInstance) {
           error:
             "Chiave API OpenAI non configurata. Vai alle impostazioni per aggiungerla.",
         });
+      }
+
+      // For Ollama, check connectivity
+      if (llmSettings.provider === "ollama") {
+        const ollamaTest = await testOllamaConnection(llmSettings.ollamaBaseUrl);
+        if (!ollamaTest.success) {
+          return reply.status(400).send({
+            results: [],
+            total_processed: 0,
+            successful: 0,
+            failed: 0,
+            error: `Impossibile connettersi a Ollama: ${ollamaTest.error}`,
+          });
+        }
       }
 
       const parts = request.parts();
@@ -95,9 +111,9 @@ export async function invoiceRoutes(app: FastifyInstance) {
             const fileName = part.filename || "unknown.pdf";
 
             try {
-              app.log.info(`Processing file: ${fileName}`);
+              app.log.info(`Processing file: ${fileName} with provider: ${llmSettings.provider}`);
 
-              const extractionResult = await extractInvoice(buffer, fileName, userApiKey);
+              const extractionResult = await extractInvoice(buffer, fileName, llmSettings);
 
               const result: ExtractionResult = {
                 file_name: fileName,

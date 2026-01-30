@@ -1,4 +1,4 @@
-import { ChatOpenAI } from "@langchain/openai";
+import { createTextLLM } from "../../services/llm.service.js";
 import type { InvoiceExtractionStateType } from "../state.js";
 import type { Invoice } from "../../types/invoice.js";
 
@@ -22,8 +22,7 @@ Return the merged invoice data as JSON.`;
 export async function reconciliationNode(
   state: InvoiceExtractionStateType
 ): Promise<Partial<InvoiceExtractionStateType>> {
-  const { textExtraction, visionExtraction, fileName, openaiApiKey } = state;
-
+  const { textExtraction, visionExtraction, fileName, llmSettings } = state;
 
   // If only one extraction succeeded, use that
   if (!textExtraction && visionExtraction) {
@@ -54,21 +53,17 @@ export async function reconciliationNode(
 
   try {
     // Both extractions available - use LLM to reconcile
-    const llm = new ChatOpenAI({
-      model: "gpt-4o",
-      temperature: 0,
-      apiKey: openaiApiKey || undefined,
-    });
+    const settings = llmSettings || { provider: "openai" as const };
+    const llm = createTextLLM(settings);
 
-    const response = await llm.invoke(
-      [
-        {
-          role: "system",
-          content: RECONCILIATION_PROMPT,
-        },
-        {
-          role: "user",
-          content: `Reconcile these two invoice extractions into a single accurate JSON result:
+    const messages = [
+      {
+        role: "system" as const,
+        content: RECONCILIATION_PROMPT,
+      },
+      {
+        role: "user" as const,
+        content: `Reconcile these two invoice extractions into a single accurate JSON result:
 
 === TEXT EXTRACTION ===
 ${JSON.stringify(textExtraction, null, 2)}
@@ -77,12 +72,16 @@ ${JSON.stringify(textExtraction, null, 2)}
 ${JSON.stringify(visionExtraction, null, 2)}
 
 Provide the merged, most accurate invoice data as JSON.`,
-        },
-      ],
-      {
-        response_format: { type: "json_object" },
-      }
-    );
+      },
+    ];
+
+    // For OpenAI, pass response_format; Ollama already has format set
+    const response =
+      settings.provider === "openai"
+        ? await llm.invoke(messages, {
+            response_format: { type: "json_object" },
+          })
+        : await llm.invoke(messages);
 
     const result = JSON.parse(response.content as string);
 

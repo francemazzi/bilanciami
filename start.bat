@@ -16,21 +16,24 @@ echo Checking Docker installation...
 where docker >nul 2>nul
 if %errorlevel% neq 0 (
     echo [WARNING] Docker is not installed
-    call :install_docker
-) else (
-    echo [OK] Docker is installed
+    echo.
+    echo Please download and install Docker Desktop from:
+    echo https://www.docker.com/products/docker-desktop/
+    echo.
+    echo After installation, restart this script.
+    echo.
+    goto :end
 )
+echo [OK] Docker is installed
 
 :: Check if Docker daemon is running
 docker info >nul 2>nul
 if %errorlevel% neq 0 (
     echo [ERROR] Docker daemon is not running
     echo Please start Docker Desktop and try again.
-    pause
-    exit /b 1
-) else (
-    echo [OK] Docker daemon is running
+    goto :end
 )
+echo [OK] Docker daemon is running
 
 :: Check Docker Compose
 docker compose version >nul 2>nul
@@ -39,8 +42,7 @@ if %errorlevel% neq 0 (
     if %errorlevel% neq 0 (
         echo [ERROR] Docker Compose is not available
         echo Please install Docker Compose and try again.
-        pause
-        exit /b 1
+        goto :end
     ) else (
         set "COMPOSE_CMD=docker-compose"
         echo [OK] Docker Compose (standalone) is available
@@ -63,7 +65,16 @@ echo Starting Bilanciami...
 echo.
 
 %COMPOSE_CMD% build
+if %errorlevel% neq 0 (
+    echo [ERROR] Build failed
+    goto :end
+)
+
 %COMPOSE_CMD% up -d
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to start containers
+    goto :end
+)
 
 echo.
 echo [OK] Bilanciami is starting!
@@ -78,21 +89,7 @@ echo.
 echo Use 'docker compose logs -f' to view logs
 echo Use 'docker compose down' to stop
 echo.
-
-pause
-exit /b 0
-
-:install_docker
-echo.
-echo Docker is not installed.
-echo.
-echo Please download and install Docker Desktop from:
-echo https://www.docker.com/products/docker-desktop/
-echo.
-echo After installation, restart this script.
-echo.
-pause
-exit /b 1
+goto :end
 
 :setup_env
 echo.
@@ -122,3 +119,8 @@ echo [OK] .env file created
 echo.
 echo Note: You can configure your OpenAI API key in the app settings after login.
 goto :eof
+
+:end
+echo.
+echo Press any key to close...
+pause >nul

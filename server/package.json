@@ -34,6 +34,7 @@
     "@fastify/swagger-ui": "^5.2.5",
     "@langchain/core": "^1.1.17",
     "@langchain/langgraph": "^1.1.2",
+    "@langchain/ollama": "^0.1.2",
     "@langchain/openai": "^1.2.3",
     "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "^7.3.0",

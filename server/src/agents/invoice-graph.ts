@@ -3,6 +3,7 @@ import { InvoiceExtractionState } from "./state.js";
 import { textExtractionNode } from "./nodes/text-extraction.node.js";
 import { visionExtractionNode } from "./nodes/vision-extraction.node.js";
 import { reconciliationNode } from "./nodes/reconciliation.node.js";
+import type { LLMSettings } from "../types/llm-provider.js";
 
 /**
  * Creates the invoice extraction LangGraph workflow.
@@ -68,20 +69,20 @@ export function getInvoiceGraph() {
  *
  * @param pdfBuffer - The PDF file as a Buffer
  * @param fileName - The original filename of the PDF
- * @param openaiApiKey - Optional OpenAI API key (uses user's key if provided)
+ * @param llmSettings - LLM settings including provider and model configuration
  * @returns The extracted invoice data and metadata
  */
 export async function extractInvoice(
   pdfBuffer: Buffer,
   fileName: string,
-  openaiApiKey?: string | null
+  llmSettings: LLMSettings
 ) {
   const graph = getInvoiceGraph();
 
   const result = await graph.invoke({
     pdfBuffer,
     fileName,
-    openaiApiKey: openaiApiKey || null,
+    llmSettings,
   });
 
   return {

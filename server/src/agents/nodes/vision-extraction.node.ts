@@ -1,5 +1,5 @@
-import { ChatOpenAI } from "@langchain/openai";
 import { fromBuffer } from "pdf2pic";
+import { createVisionLLM } from "../../services/llm.service.js";
 import type { InvoiceExtractionStateType } from "../state.js";
 
 const SYSTEM_PROMPT = `You are an expert at extracting structured data from Italian invoices (fatture) using OCR.
@@ -103,12 +103,9 @@ export async function visionExtractionNode(
       };
     }
 
-    // Use GPT-4 Vision to extract invoice data
-    const llm = new ChatOpenAI({
-      model: "gpt-4o",
-      temperature: 0,
-      apiKey: state.openaiApiKey || undefined,
-    });
+    // Use LLM factory to create appropriate vision client (OpenAI or Ollama)
+    const llmSettings = state.llmSettings || { provider: "openai" as const };
+    const llm = createVisionLLM(llmSettings);
 
     // Build image messages for all pages
     const imageMessages = pageImages.map((base64) => ({
@@ -119,27 +116,30 @@ export async function visionExtractionNode(
       },
     }));
 
-    const response = await llm.invoke(
-      [
-        {
-          role: "system",
-          content: SYSTEM_PROMPT,
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `Extract all invoice data from these ${pageImages.length} page(s) of an Italian invoice and return as JSON:`,
-            },
-            ...imageMessages,
-          ],
-        },
-      ],
+    const messages = [
       {
-        response_format: { type: "json_object" },
-      }
-    );
+        role: "system" as const,
+        content: SYSTEM_PROMPT,
+      },
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "text" as const,
+            text: `Extract all invoice data from these ${pageImages.length} page(s) of an Italian invoice and return as JSON:`,
+          },
+          ...imageMessages,
+        ],
+      },
+    ];
+
+    // For OpenAI, pass response_format; Ollama already has format set
+    const response =
+      llmSettings.provider === "openai"
+        ? await llm.invoke(messages, {
+            response_format: { type: "json_object" },
+          })
+        : await llm.invoke(messages);
 
     const result = JSON.parse(response.content as string);
 

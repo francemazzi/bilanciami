@@ -3,6 +3,14 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 import { extractInvoice } from "../src/agents/invoice-graph.js";
 import type { Invoice } from "../src/types/invoice.js";
+import type { LLMSettings } from "../src/types/llm-provider.js";
+
+// Default LLM settings for tests (uses OpenAI)
+const defaultLLMSettings: LLMSettings = {
+  provider: "openai",
+  openaiTextModel: "gpt-4o",
+  openaiVisionModel: "gpt-4o",
+};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -248,7 +256,7 @@ describe("Invoice Extraction Accuracy Test", () => {
 
       const pdfBuffer = await fs.readFile(pdfPath);
 
-      const result = await extractInvoice(pdfBuffer, expected.file_name);
+      const result = await extractInvoice(pdfBuffer, expected.file_name, defaultLLMSettings);
       const extractionTime = Date.now() - startTime;
 
       expect(result.invoice).toBeDefined();

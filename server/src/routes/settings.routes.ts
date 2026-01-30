@@ -4,7 +4,13 @@ import {
   getUserSettings,
   setOpenaiApiKey,
   deleteOpenaiApiKey,
+  updateLLMProviderSettings,
 } from "../services/settings.service.js";
+import {
+  testOllamaConnection,
+  getOllamaModels,
+} from "../services/llm.service.js";
+import type { LLMProviderSettings } from "../types/llm-provider.js";
 
 export async function settingsRoutes(app: FastifyInstance) {
   // Get user settings
@@ -22,6 +28,12 @@ export async function settingsRoutes(app: FastifyInstance) {
             properties: {
               hasOpenaiApiKey: { type: "boolean" },
               openaiApiKeyLastChars: { type: "string" },
+              llmProvider: { type: "string" },
+              ollamaBaseUrl: { type: "string" },
+              ollamaTextModel: { type: "string" },
+              ollamaVisionModel: { type: "string" },
+              openaiTextModel: { type: "string" },
+              openaiVisionModel: { type: "string" },
             },
           },
         },
@@ -118,6 +130,127 @@ export async function settingsRoutes(app: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       await deleteOpenaiApiKey(request.user!.id);
       return reply.send({ success: true });
+    }
+  );
+
+  // Update LLM provider settings
+  app.put(
+    "/settings/llm-provider",
+    {
+      preHandler: authMiddleware,
+      schema: {
+        tags: ["settings"],
+        summary: "Update LLM provider settings",
+        security: [{ bearerAuth: [] }],
+        body: {
+          type: "object",
+          properties: {
+            llmProvider: { type: "string", enum: ["openai", "ollama"] },
+            ollamaBaseUrl: { type: "string" },
+            ollamaTextModel: { type: "string" },
+            ollamaVisionModel: { type: "string" },
+            openaiTextModel: { type: "string" },
+            openaiVisionModel: { type: "string" },
+          },
+        },
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              success: { type: "boolean" },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const body = request.body as Partial<LLMProviderSettings>;
+      await updateLLMProviderSettings(request.user!.id, body);
+      return reply.send({ success: true });
+    }
+  );
+
+  // Get available Ollama models
+  app.get(
+    "/settings/ollama/models",
+    {
+      preHandler: authMiddleware,
+      schema: {
+        tags: ["settings"],
+        summary: "Get available Ollama models",
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              models: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    size: { type: "number" },
+                    modified_at: { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+          503: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const settings = await getUserSettings(request.user!.id);
+      try {
+        const models = await getOllamaModels(settings.ollamaBaseUrl);
+        return reply.send({ models });
+      } catch {
+        return reply.status(503).send({ error: "Ollama non raggiungibile" });
+      }
+    }
+  );
+
+  // Test Ollama connection
+  app.post(
+    "/settings/ollama/test",
+    {
+      preHandler: authMiddleware,
+      schema: {
+        tags: ["settings"],
+        summary: "Test Ollama connection",
+        security: [{ bearerAuth: [] }],
+        body: {
+          type: "object",
+          properties: {
+            baseUrl: { type: "string" },
+          },
+        },
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              success: { type: "boolean" },
+              models: {
+                type: "array",
+                items: { type: "string" },
+              },
+              error: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { baseUrl } = request.body as { baseUrl?: string };
+      const url = baseUrl || "http://ollama:11434";
+      const result = await testOllamaConnection(url);
+      return reply.send(result);
     }
   );
 }
