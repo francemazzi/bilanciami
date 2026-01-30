@@ -83,6 +83,8 @@ export function DocumentDetailPage() {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1.0);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [pdfLoaded, setPdfLoaded] = useState(false);
 
   useEffect(() => {
     async function loadDocument() {
@@ -149,6 +151,18 @@ export function DocumentDetailPage() {
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
+    setPdfError(null);
+    setPdfLoaded(true);
+  }
+
+  function onDocumentLoadError(error: Error) {
+    console.error('PDF load error:', error);
+    setPdfLoaded(false);
+    if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+      setPdfError('Sessione scaduta. Ricarica la pagina o effettua nuovamente il login.');
+    } else {
+      setPdfError('Errore nel caricamento del PDF');
+    }
   }
 
   if (isLoading) {
@@ -269,18 +283,34 @@ export function DocumentDetailPage() {
               </div>
               {/* PDF Document */}
               <div className="flex-1 overflow-auto p-4">
-                <Document
-                  file={pdfUrl}
-                  onLoadSuccess={onDocumentLoadSuccess}
-                  loading={<Loader2 className="h-8 w-8 animate-spin" />}
-                  options={{
-                    httpHeaders: {
-                      Authorization: `Bearer ${accessToken}`,
-                    },
-                  }}
-                >
-                  <Page pageNumber={currentPage} scale={scale} />
-                </Document>
+                {pdfError ? (
+                  <div className="flex items-center justify-center h-full text-red-600 p-4 text-center">
+                    {pdfError}
+                  </div>
+                ) : !accessToken ? (
+                  <div className="flex items-center justify-center h-full text-red-600 p-4 text-center">
+                    Sessione non valida. Effettua nuovamente il login.
+                  </div>
+                ) : (
+                  <Document
+                    file={pdfUrl}
+                    onLoadSuccess={onDocumentLoadSuccess}
+                    onLoadError={onDocumentLoadError}
+                    loading={<Loader2 className="h-8 w-8 animate-spin" />}
+                    error={
+                      <div className="flex items-center justify-center h-full text-red-600 p-4 text-center">
+                        Errore nel caricamento del PDF
+                      </div>
+                    }
+                    options={{
+                      httpHeaders: {
+                        Authorization: `Bearer ${accessToken}`,
+                      },
+                    }}
+                  >
+                    {pdfLoaded && <Page pageNumber={currentPage} scale={scale} />}
+                  </Document>
+                )}
               </div>
             </div>
           ) : (

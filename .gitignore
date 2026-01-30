@@ -1,3 +1,11 @@
 dataset
 node_modules
+uploads/
+
+# Environment files (contain secrets)
 .env
+server/.env
+client/.env
+
+# Keep example files
+!.env.example
