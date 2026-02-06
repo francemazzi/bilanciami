@@ -67,7 +67,7 @@ export function UploadPage() {
 
   if (isCheckingKey) {
     return (
-      <div className="container max-w-2xl py-8">
+      <div className="container max-w-2xl py-4 md:py-8 px-4">
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
@@ -76,10 +76,10 @@ export function UploadPage() {
   }
 
   return (
-    <div className="container max-w-2xl py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Carica Fatture</h1>
-        <p className="text-muted-foreground">
+    <div className="container max-w-2xl py-4 md:py-8 px-4">
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold mb-2">Carica Fatture</h1>
+        <p className="text-sm md:text-base text-muted-foreground">
           Carica uno o piu file PDF per estrarre automaticamente i dati delle fatture.
           L'estrazione puo richiedere alcuni secondi per ogni file.
         </p>

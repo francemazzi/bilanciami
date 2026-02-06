@@ -39,7 +39,7 @@ export function DocumentsPage() {
 
   if (isLoading) {
     return (
-      <div className="container py-8 flex items-center justify-center">
+      <div className="container py-4 md:py-8 px-4 flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     );
@@ -47,7 +47,7 @@ export function DocumentsPage() {
 
   if (error) {
     return (
-      <div className="container py-8">
+      <div className="container py-4 md:py-8 px-4">
         <div className="text-center text-red-600">{error}</div>
       </div>
     );
@@ -55,7 +55,7 @@ export function DocumentsPage() {
 
   if (documents.length === 0) {
     return (
-      <div className="container py-8">
+      <div className="container py-4 md:py-8 px-4">
         <div className="max-w-md mx-auto text-center">
           <Card>
             <CardHeader>
@@ -80,20 +80,20 @@ export function DocumentsPage() {
   }
 
   return (
-    <div className="container py-8">
-      <div className="flex items-center justify-between mb-6">
+    <div className="container py-4 md:py-8 px-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Documenti</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl md:text-2xl font-bold">Documenti</h1>
+          <p className="text-sm text-muted-foreground">
             {documents.length} documenti estratti
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           {/* Toggle vista */}
           <div className="flex border rounded-lg overflow-hidden">
             <button
               onClick={() => setViewMode('explorer')}
-              className={`flex items-center gap-2 px-3 py-2 text-sm ${
+              className={`flex items-center gap-1.5 px-2 sm:px-3 py-2 text-sm ${
                 viewMode === 'explorer'
                   ? 'bg-blue-600 text-white'
                   : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -104,7 +104,7 @@ export function DocumentsPage() {
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`flex items-center gap-2 px-3 py-2 text-sm border-l ${
+              className={`flex items-center gap-1.5 px-2 sm:px-3 py-2 text-sm border-l ${
                 viewMode === 'table'
                   ? 'bg-blue-600 text-white'
                   : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -114,10 +114,10 @@ export function DocumentsPage() {
               Tabella
             </button>
           </div>
-          <Button asChild>
+          <Button asChild size="sm">
             <Link to="/upload">
-              <Upload className="mr-2 h-4 w-4" />
-              Carica PDF
+              <Upload className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Carica PDF</span>
             </Link>
           </Button>
         </div>

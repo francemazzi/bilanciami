@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Toaster } from '@/components/ui/sonner';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { HomePage } from '@/pages/HomePage';
@@ -13,18 +13,34 @@ import { SettingsPage } from '@/pages/SettingsPage';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { useAuthStore } from '@/stores/auth.store';
+import { refreshToken } from '@/api/auth';
 
 function AuthInitializer({ children }: { children: React.ReactNode }) {
-  const { setLoading, accessToken, isAuthenticated } = useAuthStore();
+  const { setLoading, setAccessToken, accessToken, isAuthenticated, logout } = useAuthStore();
+  const initRef = useRef(false);
 
   useEffect(() => {
-    // Initialize auth state
-    if (accessToken && isAuthenticated) {
-      setLoading(false);
-    } else {
+    async function initAuth() {
+      // Prevent double initialization in React Strict Mode
+      if (initRef.current) return;
+      initRef.current = true;
+
+      // If user is authenticated but has no access token (page reload),
+      // try to refresh using the httpOnly cookie
+      if (isAuthenticated && !accessToken) {
+        try {
+          const response = await refreshToken();
+          setAccessToken(response.accessToken);
+        } catch {
+          // Refresh failed - session expired, logout
+          logout();
+        }
+      }
       setLoading(false);
     }
-  }, [accessToken, isAuthenticated, setLoading]);
+
+    initAuth();
+  }, [isAuthenticated, accessToken, setLoading, setAccessToken, logout]);
 
   return <>{children}</>;
 }

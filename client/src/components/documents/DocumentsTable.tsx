@@ -129,21 +129,21 @@ export function DocumentsTable({ documents, onDocumentClick }: DocumentsTablePro
   return (
     <div className="space-y-4">
       {/* Filtri + Export */}
-      <div className="flex justify-between items-center gap-4">
-        <div className="flex gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 flex-1">
           <input
             type="text"
             placeholder="Filtra per fornitore..."
             value={filters.supplier}
             onChange={(e) => setFilters((f) => ({ ...f, supplier: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto"
           />
           <input
             type="text"
             placeholder="Filtra per cliente..."
             value={filters.customer}
             onChange={(e) => setFilters((f) => ({ ...f, customer: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto"
           />
         </div>
         <ExportDropdown
@@ -157,8 +157,8 @@ export function DocumentsTable({ documents, onDocumentClick }: DocumentsTablePro
         />
       </div>
 
-      {/* Tabella */}
-      <div className="border rounded-lg">
+      {/* Desktop Table */}
+      <div className="hidden md:block border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -237,6 +237,45 @@ export function DocumentsTable({ documents, onDocumentClick }: DocumentsTablePro
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Mobile Card List */}
+      <div className="md:hidden space-y-3">
+        {filteredAndSortedDocs.length === 0 ? (
+          <div className="text-center text-gray-500 py-8 border rounded-lg">
+            Nessun documento trovato
+          </div>
+        ) : (
+          filteredAndSortedDocs.map((doc) => (
+            <div
+              key={doc.id}
+              className="border rounded-lg p-4 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
+              onClick={() => onDocumentClick(doc)}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <p className="font-medium text-sm truncate flex-1 mr-2">{doc.fileName}</p>
+                <p className="font-bold text-sm whitespace-nowrap">
+                  {getTotalAmount(doc) !== null ? formatCurrency(getTotalAmount(doc)!) : '-'}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                <div>
+                  <span className="text-gray-400">Fornitore:</span>
+                  <p className="truncate">{doc.supplierName}</p>
+                </div>
+                <div>
+                  <span className="text-gray-400">Cliente:</span>
+                  <p className="truncate">{doc.customerName}</p>
+                </div>
+              </div>
+              {getDueDate(doc) && (
+                <p className="text-xs text-gray-500 mt-2">
+                  Scadenza: {formatDate(getDueDate(doc)!)}
+                </p>
+              )}
+            </div>
+          ))
+        )}
       </div>
 
       <p className="text-sm text-gray-500">

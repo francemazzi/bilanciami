@@ -174,7 +174,7 @@ export function SettingsPage() {
 
   if (isPageLoading) {
     return (
-      <div className="container max-w-2xl py-8">
+      <div className="container max-w-2xl py-4 md:py-8 px-4">
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
@@ -183,10 +183,10 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="container max-w-2xl py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Impostazioni</h1>
-        <p className="text-muted-foreground">
+    <div className="container max-w-2xl py-4 md:py-8 px-4">
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold mb-2">Impostazioni</h1>
+        <p className="text-sm md:text-base text-muted-foreground">
           Gestisci le tue impostazioni e il provider LLM per l'estrazione fatture.
         </p>
       </div>
@@ -202,37 +202,37 @@ export function SettingsPage() {
             <CardDescription>Scegli il servizio da utilizzare per l'estrazione delle fatture</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <button
                 type="button"
                 onClick={() => setSelectedProvider('openai')}
-                className={`p-4 border-2 rounded-lg text-left transition-colors ${
+                className={`p-3 sm:p-4 border-2 rounded-lg text-left transition-colors ${
                   selectedProvider === 'openai'
                     ? 'border-blue-500 bg-blue-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-1 sm:mb-2">
                   <Cloud className="h-5 w-5 text-blue-600" />
                   <span className="font-semibold">OpenAI</span>
                 </div>
-                <p className="text-sm text-muted-foreground">Cloud-based, richiede API key</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Cloud-based, richiede API key</p>
               </button>
 
               <button
                 type="button"
                 onClick={() => setSelectedProvider('ollama')}
-                className={`p-4 border-2 rounded-lg text-left transition-colors ${
+                className={`p-3 sm:p-4 border-2 rounded-lg text-left transition-colors ${
                   selectedProvider === 'ollama'
                     ? 'border-green-500 bg-green-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-1 sm:mb-2">
                   <Cpu className="h-5 w-5 text-green-600" />
                   <span className="font-semibold">Ollama</span>
                 </div>
-                <p className="text-sm text-muted-foreground">Locale, gratuito, privacy</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Locale, gratuito, privacy</p>
               </button>
             </div>
 
@@ -390,7 +390,7 @@ export function SettingsPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label htmlFor="ollamaText" className="text-sm font-medium">
                     Modello Testo

@@ -201,44 +201,44 @@ export function DocumentDetailPage() {
   const pdfUrl = document.pdfStoragePath ? getDocumentPdfUrl(document.id) : null;
 
   return (
-    <div className="container py-8">
+    <div className="container py-4 md:py-8 px-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate('/documents')}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl md:text-2xl font-bold truncate">
               Fattura {invoice.invoice_id || document.fileName}
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground truncate">
               {document.supplierName} - {document.customerName}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {isEditing ? (
             <>
-              <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
-                <X className="mr-2 h-4 w-4" />
-                Annulla
+              <Button variant="outline" size="sm" onClick={handleCancel} disabled={isSaving}>
+                <X className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Annulla</span>
               </Button>
-              <Button onClick={handleSave} disabled={isSaving}>
+              <Button size="sm" onClick={handleSave} disabled={isSaving}>
                 {isSaving ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin sm:mr-2" />
                 ) : (
-                  <Save className="mr-2 h-4 w-4" />
+                  <Save className="h-4 w-4 sm:mr-2" />
                 )}
-                Salva
+                <span className="hidden sm:inline">Salva</span>
               </Button>
             </>
           ) : (
             <>
               <ExportDropdown onExport={handleExport} />
-              <Button onClick={() => setIsEditing(true)}>
-                <Edit className="mr-2 h-4 w-4" />
-                Modifica
+              <Button size="sm" onClick={() => setIsEditing(true)}>
+                <Edit className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Modifica</span>
               </Button>
             </>
           )}
@@ -246,14 +246,14 @@ export function DocumentDetailPage() {
       </div>
 
       {/* Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* PDF Viewer */}
-        <div className="border rounded-lg overflow-hidden bg-gray-100">
+        <div className="border rounded-lg overflow-hidden bg-gray-100 order-2 lg:order-1">
           {pdfUrl ? (
-            <div className="flex flex-col h-[700px]">
+            <div className="flex flex-col h-[400px] sm:h-[500px] lg:h-[700px]">
               {/* PDF Controls */}
               <div className="flex items-center justify-between p-2 bg-white border-b">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -262,7 +262,7 @@ export function DocumentDetailPage() {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <span className="text-sm">
+                  <span className="text-xs sm:text-sm min-w-[60px] text-center">
                     {currentPage} / {numPages}
                   </span>
                   <Button
@@ -274,7 +274,7 @@ export function DocumentDetailPage() {
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -282,7 +282,7 @@ export function DocumentDetailPage() {
                   >
                     <ZoomOut className="h-4 w-4" />
                   </Button>
-                  <span className="text-sm">{Math.round(scale * 100)}%</span>
+                  <span className="text-xs sm:text-sm min-w-[40px] text-center">{Math.round(scale * 100)}%</span>
                   <Button
                     variant="outline"
                     size="sm"
@@ -325,14 +325,14 @@ export function DocumentDetailPage() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-[700px] text-gray-500">
+            <div className="flex items-center justify-center h-[200px] sm:h-[300px] lg:h-[700px] text-gray-500">
               PDF non disponibile
             </div>
           )}
         </div>
 
         {/* Invoice Data */}
-        <div className="space-y-4 overflow-y-auto max-h-[700px]">
+        <div className="space-y-4 overflow-y-auto lg:max-h-[700px] order-1 lg:order-2">
           {/* Info generali */}
           <Card>
             <CardHeader className="py-3">
@@ -391,7 +391,7 @@ export function DocumentDetailPage() {
                 isEditing={isEditing}
                 onChange={updateField}
               />
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <Field
                   label="Città"
                   value={invoice.supplier?.address?.city}
@@ -444,7 +444,7 @@ export function DocumentDetailPage() {
                 isEditing={isEditing}
                 onChange={updateField}
               />
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <Field
                   label="Città"
                   value={invoice.customer?.address?.city}

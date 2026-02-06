@@ -83,10 +83,10 @@ export function ProfilePage() {
   };
 
   return (
-    <div className="container max-w-2xl py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Profilo</h1>
-        <p className="text-muted-foreground">
+    <div className="container max-w-2xl py-4 md:py-8 px-4">
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold mb-2">Profilo</h1>
+        <p className="text-sm md:text-base text-muted-foreground">
           Gestisci le tue informazioni personali e la password.
         </p>
       </div>
