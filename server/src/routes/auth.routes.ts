@@ -20,11 +20,20 @@ const COOKIE_OPTIONS = {
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
 
+// Rate limit config for sensitive auth endpoints (5 requests per minute)
+const authRateLimitConfig = {
+  rateLimit: {
+    max: 5,
+    timeWindow: "1 minute",
+  },
+};
+
 export async function authRoutes(app: FastifyInstance) {
   // Register
   app.post(
     "/auth/register",
     {
+      config: authRateLimitConfig,
       schema: {
         tags: ["auth"],
         summary: "Register a new user",
@@ -106,6 +115,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.post(
     "/auth/login",
     {
+      config: authRateLimitConfig,
       schema: {
         tags: ["auth"],
         summary: "Login user",

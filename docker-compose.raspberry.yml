@@ -1,0 +1,100 @@
+version: "3.8"
+
+services:
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bilanciami
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - "8372:3000"
+    environment:
+      - NODE_ENV=production
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - COOKIE_SECRET=${COOKIE_SECRET}
+      - DATABASE_URL=postgresql://bilanciami:bilanciami@postgres:5432/bilanciami
+      - REDIS_URL=redis://redis:6379
+      - CORS_ORIGIN=*
+      # Ollama disabled for Raspberry Pi
+      - OLLAMA_BASE_URL=
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - bilanciami
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=bilanciami
+      - POSTGRES_PASSWORD=bilanciami
+      - POSTGRES_DB=bilanciami
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bilanciami -d bilanciami"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - bilanciami
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - bilanciami
+
+  # Cloudflare Tunnel for public access
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://client:80
+    restart: unless-stopped
+    depends_on:
+      - client
+    networks:
+      - bilanciami
+
+networks:
+  bilanciami:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

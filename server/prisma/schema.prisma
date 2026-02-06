@@ -1,5 +1,4 @@
-// Prisma schema for SQLite (no-Docker mode)
-// Copy this to schema.prisma to use SQLite instead of PostgreSQL
+// Prisma schema for PostgreSQL (Docker mode)
 
 generator client {
   provider = "prisma-client"
@@ -7,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model User {

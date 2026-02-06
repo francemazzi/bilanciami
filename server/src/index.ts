@@ -5,6 +5,9 @@ import swaggerUi from "@fastify/swagger-ui";
 import multipart from "@fastify/multipart";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
+
+const isProduction = process.env.NODE_ENV === "production";
 import { invoiceRoutes } from "./routes/invoice.routes.js";
 import { userRoutes } from "./routes/user.routes.js";
 import { documentRoutes } from "./routes/document.routes.js";
@@ -31,67 +34,77 @@ const app = Fastify({
 });
 
 async function main() {
-  // Register Swagger documentation
-  await app.register(swagger, {
-    openapi: {
-      info: {
-        title: "Invoice Extraction API",
-        description:
-          "Extract structured data from PDF invoices using AI-powered text and vision extraction",
-        version: "1.0.0",
-      },
-      servers: [
-        {
-          url: "http://localhost:3000",
-          description: "Development server",
+  // Rate limiting - strict for auth endpoints, relaxed for others
+  await app.register(rateLimit, {
+    global: true,
+    max: 100, // 100 requests per minute globally
+    timeWindow: "1 minute",
+    // Stricter limits for auth endpoints (applied via route config)
+  });
+
+  // Register Swagger documentation (only in development)
+  if (!isProduction) {
+    await app.register(swagger, {
+      openapi: {
+        info: {
+          title: "Invoice Extraction API",
+          description:
+            "Extract structured data from PDF invoices using AI-powered text and vision extraction",
+          version: "1.0.0",
         },
-      ],
-      tags: [
-        {
-          name: "auth",
-          description: "Authentication endpoints",
-        },
-        {
-          name: "invoices",
-          description: "Invoice extraction endpoints",
-        },
-        {
-          name: "users",
-          description: "User management endpoints",
-        },
-        {
-          name: "documents",
-          description: "Document management endpoints",
-        },
-        {
-          name: "user-documents",
-          description: "User-Document assignment endpoints",
-        },
-        {
-          name: "settings",
-          description: "User settings endpoints",
-        },
-      ],
-      components: {
-        securitySchemes: {
-          bearerAuth: {
-            type: "http",
-            scheme: "bearer",
-            bearerFormat: "JWT",
+        servers: [
+          {
+            url: "http://localhost:3000",
+            description: "Development server",
+          },
+        ],
+        tags: [
+          {
+            name: "auth",
+            description: "Authentication endpoints",
+          },
+          {
+            name: "invoices",
+            description: "Invoice extraction endpoints",
+          },
+          {
+            name: "users",
+            description: "User management endpoints",
+          },
+          {
+            name: "documents",
+            description: "Document management endpoints",
+          },
+          {
+            name: "user-documents",
+            description: "User-Document assignment endpoints",
+          },
+          {
+            name: "settings",
+            description: "User settings endpoints",
+          },
+        ],
+        components: {
+          securitySchemes: {
+            bearerAuth: {
+              type: "http",
+              scheme: "bearer",
+              bearerFormat: "JWT",
+            },
           },
         },
       },
-    },
-  });
+    });
 
-  // Register Swagger UI
-  await app.register(swaggerUi, {
-    routePrefix: "/docs",
-    uiConfig: {
-      docExpansion: "list",
-      deepLinking: true,
-    },
-  });
+    // Register Swagger UI
+    await app.register(swaggerUi, {
+      routePrefix: "/docs",
+      uiConfig: {
+        docExpansion: "list",
+        deepLinking: true,
+      },
+    });
+  }
 
   // Register CORS
   await app.register(cors, {
@@ -100,8 +113,12 @@ async function main() {
   });
 
   // Register cookie plugin
+  const cookieSecret = process.env.COOKIE_SECRET;
+  if (!cookieSecret) {
+    throw new Error("COOKIE_SECRET environment variable is required");
+  }
   await app.register(cookie, {
-    secret: process.env.COOKIE_SECRET || "your-cookie-secret-change-in-production",
+    secret: cookieSecret,
   });
 
   // Register multipart for file uploads
