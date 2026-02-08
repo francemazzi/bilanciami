@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { FileText, Upload, FolderOpen, LogOut, User, Settings, ChevronDown, Menu, X } from 'lucide-react';
+import { FileText, Upload, FolderOpen, LogOut, User, Settings, ChevronDown, Menu, X, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth.store';
+import { isAdmin } from '@/components/auth/AdminRoute';
 import { logout as logoutApi } from '@/api/auth';
 import {
   DropdownMenu,
@@ -94,6 +95,15 @@ export function Header() {
                   <Settings className="mr-2 h-4 w-4" />
                   Impostazioni
                 </DropdownMenuItem>
+                {isAdmin(user?.email) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => navigate('/admin')}>
+                      <Shield className="mr-2 h-4 w-4" />
+                      Admin
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600">
                   <LogOut className="mr-2 h-4 w-4" />
@@ -155,6 +165,15 @@ export function Header() {
                   <Settings className="h-5 w-5" />
                   <span className="font-medium">Impostazioni</span>
                 </button>
+                {isAdmin(user?.email) && (
+                  <button
+                    onClick={() => handleNavClick('/admin')}
+                    className="flex items-center space-x-3 w-full p-3 rounded-lg text-foreground/60 hover:bg-muted"
+                  >
+                    <Shield className="h-5 w-5" />
+                    <span className="font-medium">Admin</span>
+                  </button>
+                )}
                 <button
                   onClick={handleLogout}
                   className="flex items-center space-x-3 w-full p-3 rounded-lg text-red-600 hover:bg-red-50"

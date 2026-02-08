@@ -11,6 +11,12 @@ import {
   getOllamaModels,
 } from "../services/llm.service.js";
 import type { LLMProviderSettings } from "../types/llm-provider.js";
+import {
+  getUserLicenseInfo,
+  setUserLicense,
+  LICENSE_TIERS,
+  type LicenseTier,
+} from "../services/license.service.js";
 
 export async function settingsRoutes(app: FastifyInstance) {
   // Get user settings
@@ -251,6 +257,96 @@ export async function settingsRoutes(app: FastifyInstance) {
       const url = baseUrl || "http://ollama:11434";
       const result = await testOllamaConnection(url);
       return reply.send(result);
+    }
+  );
+
+  // Get user license info
+  app.get(
+    "/settings/license",
+    {
+      preHandler: authMiddleware,
+      schema: {
+        tags: ["settings"],
+        summary: "Get user license and PDF limit info",
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              licenseTier: { type: "string" },
+              pdfLimit: { type: "number" },
+              pdfCount: { type: "number" },
+              remainingPdfs: { type: "number" },
+              isLimitReached: { type: "boolean" },
+              licenseExpiresAt: { type: "string", nullable: true },
+              isLicenseActive: { type: "boolean" },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const licenseInfo = await getUserLicenseInfo(request.user!.id);
+      return reply.send({
+        ...licenseInfo,
+        licenseExpiresAt: licenseInfo.licenseExpiresAt?.toISOString() ?? null,
+      });
+    }
+  );
+
+  // Update user license (admin endpoint)
+  app.put(
+    "/settings/license",
+    {
+      preHandler: authMiddleware,
+      schema: {
+        tags: ["settings"],
+        summary: "Update user license tier (admin)",
+        security: [{ bearerAuth: [] }],
+        body: {
+          type: "object",
+          required: ["userId", "licenseTier"],
+          properties: {
+            userId: { type: "string" },
+            licenseTier: { type: "string", enum: [...LICENSE_TIERS] },
+            expiresAt: { type: "string", nullable: true },
+          },
+        },
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              success: { type: "boolean" },
+            },
+          },
+          400: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { userId, licenseTier, expiresAt } = request.body as {
+        userId: string;
+        licenseTier: LicenseTier;
+        expiresAt?: string | null;
+      };
+
+      try {
+        await setUserLicense(
+          userId,
+          licenseTier,
+          expiresAt ? new Date(expiresAt) : null
+        );
+        return reply.send({ success: true });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Errore durante l'aggiornamento";
+        return reply.status(400).send({ error: message });
+      }
     }
   );
 }

@@ -8,6 +8,7 @@ import { generateDocumentPath } from "../lib/document-path.js";
 import { Prisma } from "../../generated/prisma/client";
 import { getFullLLMSettings } from "../services/settings.service.js";
 import { testOllamaConnection } from "../services/llm.service.js";
+import { canUploadPdfs } from "../services/license.service.js";
 
 interface ExtractionResult {
   file_name: string;
@@ -97,137 +98,150 @@ export async function invoiceRoutes(app: FastifyInstance) {
         }
       }
 
+      // Buffer all PDF files first to count them
       const parts = request.parts();
-      const results: ExtractionResult[] = [];
+      const pdfFiles: Array<{ buffer: Buffer; fileName: string }> = [];
 
       for await (const part of parts) {
         if (part.type === "file") {
-          // Accept PDF files
           if (
             part.mimetype === "application/pdf" ||
             part.filename?.toLowerCase().endsWith(".pdf")
           ) {
-            const buffer = await part.toBuffer();
-            const fileName = part.filename || "unknown.pdf";
+            pdfFiles.push({
+              buffer: await part.toBuffer(),
+              fileName: part.filename || "unknown.pdf",
+            });
+          }
+        }
+      }
 
+      // Check license limit before processing
+      const limitCheck = await canUploadPdfs(userId, pdfFiles.length);
+      if (!limitCheck.allowed) {
+        return reply.status(403).send({
+          results: [],
+          total_processed: 0,
+          successful: 0,
+          failed: 0,
+          error: limitCheck.reason,
+          remainingPdfs: limitCheck.remainingPdfs,
+          licenseTier: limitCheck.licenseTier,
+        });
+      }
+
+      const results: ExtractionResult[] = [];
+
+      // Process buffered PDF files
+      for (const { buffer, fileName } of pdfFiles) {
+        try {
+          app.log.info(`Processing file: ${fileName} with provider: ${llmSettings.provider}`);
+
+          const extractionResult = await extractInvoice(buffer, fileName, llmSettings);
+
+          const result: ExtractionResult = {
+            file_name: fileName,
+            success: !!extractionResult.invoice,
+            invoice: extractionResult.invoice || undefined,
+            errors:
+              extractionResult.errors.length > 0
+                ? extractionResult.errors
+                : undefined,
+            confidence: extractionResult.confidence,
+          };
+
+          // Save document to database if user is authenticated and extraction was successful
+          if (userId && extractionResult.invoice) {
             try {
-              app.log.info(`Processing file: ${fileName} with provider: ${llmSettings.provider}`);
+              const invoice = extractionResult.invoice;
+              const supplierName = invoice.supplier?.name || "Unknown Supplier";
+              const customerName = invoice.customer?.name || "Unknown Customer";
+              const extractionDate = new Date();
+              const filePath = generateDocumentPath(extractionDate, customerName, supplierName);
 
-              const extractionResult = await extractInvoice(buffer, fileName, llmSettings);
+              // Parse dates from invoice
+              let documentDate: Date | null = null;
+              let dueDate: Date | null = null;
 
-              const result: ExtractionResult = {
-                file_name: fileName,
-                success: !!extractionResult.invoice,
-                invoice: extractionResult.invoice || undefined,
-                errors:
-                  extractionResult.errors.length > 0
-                    ? extractionResult.errors
-                    : undefined,
-                confidence: extractionResult.confidence,
-              };
-
-              // Save document to database if user is authenticated and extraction was successful
-              if (userId && extractionResult.invoice) {
-                try {
-                  const invoice = extractionResult.invoice;
-                  const supplierName = invoice.supplier?.name || "Unknown Supplier";
-                  const customerName = invoice.customer?.name || "Unknown Customer";
-                  const extractionDate = new Date();
-                  const filePath = generateDocumentPath(extractionDate, customerName, supplierName);
-
-                  // Parse dates from invoice
-                  let documentDate: Date | null = null;
-                  let dueDate: Date | null = null;
-
-                  if (invoice.document_date) {
-                    const parsed = new Date(invoice.document_date);
-                    if (!isNaN(parsed.getTime())) {
-                      documentDate = parsed;
-                    }
-                  }
-
-                  if (invoice.payment_details?.due_date) {
-                    const parsed = new Date(invoice.payment_details.due_date);
-                    if (!isNaN(parsed.getTime())) {
-                      dueDate = parsed;
-                    }
-                  }
-
-                  // Create document in database
-                  const document = await prisma.document.create({
-                    data: {
-                      extractionDate,
-                      customerName,
-                      supplierName,
-                      filePath,
-                      fileName,
-                      mimeType: "application/pdf",
-                      fileSize: buffer.length,
-                      metadata: invoice as unknown as Prisma.InputJsonValue,
-                      invoiceId: invoice.invoice_id || null,
-                      documentDate,
-                      dueDate,
-                      totalAmount: invoice.totals?.total_amount ?? null,
-                    },
-                  });
-
-                  // Save PDF to disk
-                  const pdfStoragePath = await savePdf(buffer, userId, document.id, fileName);
-
-                  // Update document with PDF storage path
-                  await prisma.document.update({
-                    where: { id: document.id },
-                    data: { pdfStoragePath },
-                  });
-
-                  // Associate document with user
-                  await prisma.userOnDocument.create({
-                    data: {
-                      userId,
-                      documentId: document.id,
-                      role: "owner",
-                    },
-                  });
-
-                  result.document_id = document.id;
-                  app.log.info(`Document saved with ID: ${document.id}`);
-                } catch (saveError) {
-                  const errorMessage =
-                    saveError instanceof Error ? saveError.message : String(saveError);
-                  app.log.error(`Failed to save document: ${errorMessage}`);
-                  // Don't fail the extraction if save fails
-                  if (!result.errors) {
-                    result.errors = [];
-                  }
-                  result.errors.push(`Document save failed: ${errorMessage}`);
+              if (invoice.document_date) {
+                const parsed = new Date(invoice.document_date);
+                if (!isNaN(parsed.getTime())) {
+                  documentDate = parsed;
                 }
               }
 
-              results.push(result);
+              if (invoice.payment_details?.due_date) {
+                const parsed = new Date(invoice.payment_details.due_date);
+                if (!isNaN(parsed.getTime())) {
+                  dueDate = parsed;
+                }
+              }
 
-              app.log.info(
-                `Completed processing: ${fileName} (confidence: ${extractionResult.confidence})`
-              );
-            } catch (error) {
-              const errorMessage =
-                error instanceof Error ? error.message : String(error);
-              app.log.error(`Failed to process ${fileName}: ${errorMessage}`);
-
-              results.push({
-                file_name: fileName,
-                success: false,
-                errors: [`Processing failed: ${errorMessage}`],
+              // Create document in database
+              const document = await prisma.document.create({
+                data: {
+                  extractionDate,
+                  customerName,
+                  supplierName,
+                  filePath,
+                  fileName,
+                  mimeType: "application/pdf",
+                  fileSize: buffer.length,
+                  metadata: invoice as unknown as Prisma.InputJsonValue,
+                  invoiceId: invoice.invoice_id || null,
+                  documentDate,
+                  dueDate,
+                  totalAmount: invoice.totals?.total_amount ?? null,
+                },
               });
+
+              // Save PDF to disk
+              const pdfStoragePath = await savePdf(buffer, userId, document.id, fileName);
+
+              // Update document with PDF storage path
+              await prisma.document.update({
+                where: { id: document.id },
+                data: { pdfStoragePath },
+              });
+
+              // Associate document with user
+              await prisma.userOnDocument.create({
+                data: {
+                  userId,
+                  documentId: document.id,
+                  role: "owner",
+                },
+              });
+
+              result.document_id = document.id;
+              app.log.info(`Document saved with ID: ${document.id}`);
+            } catch (saveError) {
+              const errorMessage =
+                saveError instanceof Error ? saveError.message : String(saveError);
+              app.log.error(`Failed to save document: ${errorMessage}`);
+              // Don't fail the extraction if save fails
+              if (!result.errors) {
+                result.errors = [];
+              }
+              result.errors.push(`Document save failed: ${errorMessage}`);
             }
-          } else {
-            results.push({
-              file_name: part.filename || "unknown",
-              success: false,
-              errors: [
-                `Invalid file type: ${part.mimetype}. Only PDF files are accepted.`,
-              ],
-            });
           }
+
+          results.push(result);
+
+          app.log.info(
+            `Completed processing: ${fileName} (confidence: ${extractionResult.confidence})`
+          );
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          app.log.error(`Failed to process ${fileName}: ${errorMessage}`);
+
+          results.push({
+            file_name: fileName,
+            success: false,
+            errors: [`Processing failed: ${errorMessage}`],
+          });
         }
       }
 

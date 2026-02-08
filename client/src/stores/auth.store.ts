@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useSettingsStore } from './settings.store';
+import { useLicenseStore } from './license.store';
 
 export interface User {
   id: string;
@@ -41,6 +42,7 @@ export const useAuthStore = create<AuthState>()(
         set({ accessToken }),
       logout: () => {
         useSettingsStore.getState().clearSettings();
+        useLicenseStore.getState().clearLicense();
         set({
           user: null,
           accessToken: null,

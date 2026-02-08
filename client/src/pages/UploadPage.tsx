@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { PdfDropzone } from '@/components/upload/PdfDropzone';
 import { uploadPdfs } from '@/api/invoices';
-import { getSettings } from '@/api/settings';
+import { getSettings, getLicenseInfo } from '@/api/settings';
 import { toast } from 'sonner';
 import { useSettingsStore } from '@/stores/settings.store';
-import { AlertCircle, Settings } from 'lucide-react';
+import { useLicenseStore } from '@/stores/license.store';
+import { AlertCircle, Settings, FileWarning, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ExtractionResponse } from '@/api/types';
 
@@ -14,17 +15,32 @@ export function UploadPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isCheckingKey, setIsCheckingKey] = useState(true);
   const { hasOpenaiApiKey, setSettings, setLoading } = useSettingsStore();
+  const {
+    licenseTier,
+    pdfLimit,
+    pdfCount,
+    remainingPdfs,
+    isLimitReached,
+    setLicenseInfo,
+    decrementRemaining,
+  } = useLicenseStore();
+
+  const isFreeUser = licenseTier === 'free';
 
   useEffect(() => {
-    checkApiKey();
+    checkApiKeyAndLicense();
   }, []);
 
-  const checkApiKey = async () => {
+  const checkApiKeyAndLicense = async () => {
     setIsCheckingKey(true);
     setLoading(true);
     try {
-      const settings = await getSettings();
+      const [settings, license] = await Promise.all([
+        getSettings(),
+        getLicenseInfo(),
+      ]);
       setSettings(settings);
+      setLicenseInfo(license);
     } catch {
       // Ignore errors, will show warning
     } finally {
@@ -39,11 +55,24 @@ export function UploadPage() {
       return;
     }
 
+    // Check client-side limit
+    if (isLimitReached) {
+      toast.error('Hai raggiunto il limite di PDF. Passa a un piano superiore.');
+      return;
+    }
+
+    if (remainingPdfs !== -1 && files.length > remainingPdfs) {
+      toast.error(`Puoi caricare ancora ${remainingPdfs} PDF. Hai selezionato ${files.length} file.`);
+      return;
+    }
+
     setIsUploading(true);
     try {
       const data: ExtractionResponse = await uploadPdfs(files);
 
       if (data.successful > 0) {
+        // Update local count on success
+        decrementRemaining(data.successful);
         toast.success(
           `${data.successful} fattur${data.successful === 1 ? 'a estratta' : 'e estratte'} con successo`
         );
@@ -85,6 +114,47 @@ export function UploadPage() {
         </p>
       </div>
 
+      {/* PDF Limit Info Banner */}
+      {isFreeUser && !isLimitReached && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <FileWarning className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-blue-800 font-medium">
+                Piano gratuito: {pdfCount}/{pdfLimit} PDF utilizzati
+              </p>
+              <p className="text-sm text-blue-700 mt-1">
+                Puoi ancora caricare {remainingPdfs} PDF.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Limit Reached Error */}
+      {isLimitReached && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-red-800 font-medium">
+                Limite raggiunto
+              </p>
+              <p className="text-sm text-red-700 mt-1">
+                Hai utilizzato tutti i {pdfLimit} PDF disponibili nel piano {licenseTier}.
+                Passa a un piano superiore per continuare.
+              </p>
+              <Button asChild variant="outline" size="sm" className="mt-3">
+                <Link to="/pricing">
+                  <Crown className="h-4 w-4 mr-2" />
+                  Passa a Pro
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!hasOpenaiApiKey && (
         <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
           <div className="flex items-start gap-3">
@@ -111,7 +181,9 @@ export function UploadPage() {
       <PdfDropzone
         onFilesSelected={handleUpload}
         isUploading={isUploading}
-        disabled={!hasOpenaiApiKey}
+        disabled={!hasOpenaiApiKey || isLimitReached}
+        maxFiles={remainingPdfs === -1 ? 10 : Math.min(10, remainingPdfs)}
+        remainingPdfs={remainingPdfs}
       />
 
       <div className="mt-8 p-4 bg-muted rounded-lg">

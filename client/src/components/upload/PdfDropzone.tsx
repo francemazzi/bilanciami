@@ -10,9 +10,17 @@ interface PdfDropzoneProps {
   onFilesSelected: (files: File[]) => void;
   isUploading: boolean;
   disabled?: boolean;
+  maxFiles?: number;
+  remainingPdfs?: number;
 }
 
-export function PdfDropzone({ onFilesSelected, isUploading, disabled = false }: PdfDropzoneProps) {
+export function PdfDropzone({
+  onFilesSelected,
+  isUploading,
+  disabled = false,
+  maxFiles = 10,
+  remainingPdfs,
+}: PdfDropzoneProps) {
   const isDisabled = isUploading || disabled;
   const [files, setFiles] = useState<File[]>([]);
 
@@ -27,7 +35,7 @@ export function PdfDropzone({ onFilesSelected, isUploading, disabled = false }: 
     onDrop,
     accept: { 'application/pdf': ['.pdf'] },
     multiple: true,
-    maxFiles: 10,
+    maxFiles,
     disabled: isDisabled,
   });
 
@@ -63,7 +71,12 @@ export function PdfDropzone({ onFilesSelected, isUploading, disabled = false }: 
             {isDragActive ? 'Rilascia i file PDF qui' : 'Trascina i PDF qui'}
           </p>
           <p className="text-sm text-muted-foreground mt-2">
-            oppure clicca per selezionare (max 10 file, 50MB ciascuno)
+            oppure clicca per selezionare (max {maxFiles} file, 50MB ciascuno)
+            {remainingPdfs !== undefined && remainingPdfs !== -1 && (
+              <span className="block mt-1 text-blue-600">
+                PDF rimanenti: {remainingPdfs}
+              </span>
+            )}
           </p>
         </div>
       </Card>

@@ -18,6 +18,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // License tier: free, starter, professional, enterprise
+  licenseTier      String    @default("free")
+  licenseExpiresAt DateTime?
+
   documents UserOnDocument[]
   sessions  Session[]
   settings  UserSettings?

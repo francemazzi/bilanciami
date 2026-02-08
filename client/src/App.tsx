@@ -11,7 +11,9 @@ import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { ProfilePage } from '@/pages/ProfilePage';
+import { AdminPage } from '@/pages/AdminPage';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { AdminRoute } from '@/components/auth/AdminRoute';
 import { useAuthStore } from '@/stores/auth.store';
 import { refreshToken } from '@/api/auth';
 
@@ -69,6 +71,14 @@ function App() {
             <Route path="/documents/:id" element={<DocumentDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route
+              path="/admin"
+              element={
+                <AdminRoute>
+                  <AdminPage />
+                </AdminRoute>
+              }
+            />
           </Route>
 
           {/* Fallback */}

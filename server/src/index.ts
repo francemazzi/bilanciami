@@ -14,6 +14,8 @@ import { documentRoutes } from "./routes/document.routes.js";
 import { userDocumentRoutes } from "./routes/user-document.routes.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { settingsRoutes } from "./routes/settings.routes.js";
+import { chatRoutes } from "./routes/chat.routes.js";
+import { adminRoutes } from "./routes/admin.routes.js";
 import * as path from "path";
 import * as fs from "fs";
 
@@ -83,6 +85,14 @@ async function main() {
             name: "settings",
             description: "User settings endpoints",
           },
+          {
+            name: "chat",
+            description: "AI chat assistant for accounting queries",
+          },
+          {
+            name: "admin",
+            description: "Admin-only endpoints for user and license management",
+          },
         ],
         components: {
           securitySchemes: {
@@ -147,6 +157,12 @@ async function main() {
   // Register settings routes
   await app.register(settingsRoutes, { prefix: "/api/v1" });
 
+  // Register chat routes
+  await app.register(chatRoutes, { prefix: "/api/v1" });
+
+  // Register admin routes
+  await app.register(adminRoutes, { prefix: "/api/v1" });
+
   // Health check endpoint
   app.get("/health", {
     schema: {
@@ -206,6 +222,10 @@ async function main() {
         create: "POST /api/v1/user-documents",
         update: "PUT /api/v1/user-documents/:id",
         delete: "DELETE /api/v1/user-documents/:id",
+      },
+      chat: {
+        send: "POST /api/v1/chat",
+        approve: "POST /api/v1/chat/approve",
       },
     },
   }));

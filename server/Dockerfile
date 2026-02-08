@@ -40,6 +40,7 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/tsconfig.json ./
 COPY --from=builder /app/generated ./generated
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./
 
 # Create non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser

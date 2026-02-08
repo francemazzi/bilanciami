@@ -28,6 +28,18 @@ export interface OllamaModel {
   modified_at: string;
 }
 
+export type LicenseTier = 'free' | 'starter' | 'professional' | 'enterprise';
+
+export interface LicenseInfo {
+  licenseTier: LicenseTier;
+  pdfLimit: number;
+  pdfCount: number;
+  remainingPdfs: number;
+  isLimitReached: boolean;
+  licenseExpiresAt: string | null;
+  isLicenseActive: boolean;
+}
+
 export async function getSettings(): Promise<UserSettings> {
   return apiRequest<UserSettings>('/settings');
 }
@@ -73,4 +85,8 @@ export async function testOllamaConnection(
       body: JSON.stringify({ baseUrl }),
     }
   );
+}
+
+export async function getLicenseInfo(): Promise<LicenseInfo> {
+  return apiRequest<LicenseInfo>('/settings/license');
 }
