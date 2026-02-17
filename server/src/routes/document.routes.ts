@@ -36,14 +36,16 @@ interface DocumentQuerystring {
 }
 
 export async function documentRoutes(app: FastifyInstance) {
-  // GET /documents - Lista tutti i documenti
+  // GET /documents - Lista documenti dell'utente autenticato
   app.get(
     "/documents",
     {
+      preHandler: authMiddleware,
       schema: {
-        summary: "Lista tutti i documenti",
-        description: "Restituisce la lista di tutti i documenti con filtri opzionali",
+        summary: "Lista documenti utente",
+        description: "Restituisce la lista dei documenti accessibili dall'utente autenticato",
         tags: ["documents"],
+        security: [{ bearerAuth: [] }],
         querystring: {
           type: "object",
           properties: {
@@ -78,13 +80,26 @@ export async function documentRoutes(app: FastifyInstance) {
               },
             },
           },
+          401: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+            },
+          },
         },
       },
     },
-    async (request: FastifyRequest<{ Querystring: DocumentQuerystring }>) => {
-      const { customerName, supplierName, fromDate, toDate } = request.query;
+    async (request, reply) => {
+      const userId = request.user?.id;
+      if (!userId) {
+        return reply.status(401).send({ error: "Non autenticato" });
+      }
 
-      const where: Record<string, unknown> = {};
+      const { customerName, supplierName, fromDate, toDate } = request.query as DocumentQuerystring;
+
+      const where: Record<string, unknown> = {
+        users: { some: { userId } },
+      };
 
       if (customerName) {
         where.customerName = { contains: customerName, mode: "insensitive" };
@@ -106,14 +121,16 @@ export async function documentRoutes(app: FastifyInstance) {
     }
   );
 
-  // GET /documents/:id - Ottieni un documento specifico
+  // GET /documents/:id - Ottieni un documento specifico (solo se l'utente ha accesso)
   app.get(
     "/documents/:id",
     {
+      preHandler: authMiddleware,
       schema: {
         summary: "Ottieni un documento",
-        description: "Restituisce i dettagli di un documento specifico",
+        description: "Restituisce i dettagli di un documento specifico accessibile dall'utente",
         tags: ["documents"],
+        security: [{ bearerAuth: [] }],
         params: {
           type: "object",
           properties: {
@@ -164,11 +181,15 @@ export async function documentRoutes(app: FastifyInstance) {
         },
       },
     },
-    async (request: FastifyRequest<{ Params: DocumentParams }>, reply: FastifyReply) => {
-      const { id } = request.params;
+    async (request, reply) => {
+      const { id } = request.params as DocumentParams;
+      const userId = request.user?.id;
 
-      const document = await prisma.document.findUnique({
-        where: { id },
+      const document = await prisma.document.findFirst({
+        where: {
+          id,
+          users: userId ? { some: { userId } } : undefined,
+        },
         include: {
           users: {
             include: {
@@ -186,14 +207,16 @@ export async function documentRoutes(app: FastifyInstance) {
     }
   );
 
-  // POST /documents - Crea un nuovo documento
+  // POST /documents - Crea un nuovo documento (assegna l'utente come owner)
   app.post(
     "/documents",
     {
+      preHandler: authMiddleware,
       schema: {
         summary: "Crea un nuovo documento",
-        description: "Registra un nuovo documento nel sistema. Il path viene generato automaticamente nel formato: <data estrazione>/<customer>-<supplier>/",
+        description: "Registra un nuovo documento nel sistema e assegna l'utente come owner",
         tags: ["documents"],
+        security: [{ bearerAuth: [] }],
         body: {
           type: "object",
           properties: {
@@ -224,10 +247,21 @@ export async function documentRoutes(app: FastifyInstance) {
               updatedAt: { type: "string" },
             },
           },
+          401: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+            },
+          },
         },
       },
     },
-    async (request: FastifyRequest<{ Body: CreateDocumentBody }>, reply: FastifyReply) => {
+    async (request, reply) => {
+      const userId = request.user?.id;
+      if (!userId) {
+        return reply.status(401).send({ error: "Non autenticato" });
+      }
+
       const {
         customerName,
         supplierName,
@@ -236,7 +270,7 @@ export async function documentRoutes(app: FastifyInstance) {
         fileSize,
         metadata,
         extractionDate,
-      } = request.body;
+      } = request.body as CreateDocumentBody;
 
       const date = extractionDate ? new Date(extractionDate) : new Date();
       const filePath = generateDocumentPath(date, customerName, supplierName);
@@ -251,6 +285,12 @@ export async function documentRoutes(app: FastifyInstance) {
           mimeType,
           fileSize,
           metadata,
+          users: {
+            create: {
+              userId,
+              role: "owner",
+            },
+          },
         },
       });
 
@@ -258,14 +298,16 @@ export async function documentRoutes(app: FastifyInstance) {
     }
   );
 
-  // PUT /documents/:id - Aggiorna un documento
+  // PUT /documents/:id - Aggiorna un documento (solo se l'utente ha accesso editor/owner)
   app.put(
     "/documents/:id",
     {
+      preHandler: authMiddleware,
       schema: {
         summary: "Aggiorna un documento",
-        description: "Modifica i dati di un documento esistente. Il path viene rigenerato se customer o supplier cambiano",
+        description: "Modifica i dati di un documento esistente. Richiede ruolo editor o owner",
         tags: ["documents"],
+        security: [{ bearerAuth: [] }],
         params: {
           type: "object",
           properties: {
@@ -310,13 +352,24 @@ export async function documentRoutes(app: FastifyInstance) {
         },
       },
     },
-    async (
-      request: FastifyRequest<{ Params: DocumentParams; Body: UpdateDocumentBody }>,
-      reply: FastifyReply
-    ) => {
-      const { id } = request.params;
+    async (request, reply) => {
+      const { id } = request.params as DocumentParams;
+      const userId = request.user?.id;
       const { customerName, supplierName, fileName, mimeType, fileSize, metadata } =
-        request.body;
+        request.body as UpdateDocumentBody;
+
+      // Verifica che l'utente abbia accesso editor/owner
+      const assignment = await prisma.userOnDocument.findFirst({
+        where: {
+          documentId: id,
+          userId,
+          role: { in: ["editor", "owner"] },
+        },
+      });
+
+      if (!assignment) {
+        return reply.status(404).send({ error: "Documento non trovato o accesso negato" });
+      }
 
       try {
         // Se customer o supplier cambiano, rigenera il path
@@ -364,14 +417,16 @@ export async function documentRoutes(app: FastifyInstance) {
     }
   );
 
-  // DELETE /documents/:id - Elimina un documento
+  // DELETE /documents/:id - Elimina un documento (solo owner)
   app.delete(
     "/documents/:id",
     {
+      preHandler: authMiddleware,
       schema: {
         summary: "Elimina un documento",
-        description: "Rimuove un documento dal sistema",
+        description: "Rimuove un documento dal sistema. Richiede ruolo owner",
         tags: ["documents"],
+        security: [{ bearerAuth: [] }],
         params: {
           type: "object",
           properties: {
@@ -395,8 +450,22 @@ export async function documentRoutes(app: FastifyInstance) {
         },
       },
     },
-    async (request: FastifyRequest<{ Params: DocumentParams }>, reply: FastifyReply) => {
-      const { id } = request.params;
+    async (request, reply) => {
+      const { id } = request.params as DocumentParams;
+      const userId = request.user?.id;
+
+      // Solo l'owner può eliminare un documento
+      const assignment = await prisma.userOnDocument.findFirst({
+        where: {
+          documentId: id,
+          userId,
+          role: "owner",
+        },
+      });
+
+      if (!assignment) {
+        return reply.status(404).send({ error: "Documento non trovato o accesso negato" });
+      }
 
       try {
         await prisma.document.delete({

@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "../lib/prisma.js";
+import { adminMiddleware } from "../middleware/auth.middleware.js";
 
 interface AssignmentParams {
   id: string;
@@ -22,14 +23,16 @@ interface AssignmentQuerystring {
 }
 
 export async function userDocumentRoutes(app: FastifyInstance) {
-  // GET /user-documents - Lista tutte le assegnazioni
+  // GET /user-documents - Lista tutte le assegnazioni (solo admin)
   app.get(
     "/user-documents",
     {
+      preHandler: adminMiddleware,
       schema: {
         summary: "Lista tutte le assegnazioni utente-documento",
-        description: "Restituisce la lista di tutte le assegnazioni con filtri opzionali",
+        description: "Restituisce la lista di tutte le assegnazioni con filtri opzionali. Solo admin.",
         tags: ["user-documents"],
+        security: [{ bearerAuth: [] }],
         querystring: {
           type: "object",
           properties: {
@@ -57,8 +60,8 @@ export async function userDocumentRoutes(app: FastifyInstance) {
         },
       },
     },
-    async (request: FastifyRequest<{ Querystring: AssignmentQuerystring }>) => {
-      const { userId, documentId, role } = request.query;
+    async (request) => {
+      const { userId, documentId, role } = request.query as AssignmentQuerystring;
 
       const where: Record<string, unknown> = {};
 
@@ -77,14 +80,16 @@ export async function userDocumentRoutes(app: FastifyInstance) {
     }
   );
 
-  // GET /user-documents/:id - Ottieni un'assegnazione specifica
+  // GET /user-documents/:id - Ottieni un'assegnazione specifica (solo admin)
   app.get(
     "/user-documents/:id",
     {
+      preHandler: adminMiddleware,
       schema: {
         summary: "Ottieni un'assegnazione",
-        description: "Restituisce i dettagli di un'assegnazione specifica",
+        description: "Restituisce i dettagli di un'assegnazione specifica. Solo admin.",
         tags: ["user-documents"],
+        security: [{ bearerAuth: [] }],
         params: {
           type: "object",
           properties: {
@@ -114,8 +119,8 @@ export async function userDocumentRoutes(app: FastifyInstance) {
         },
       },
     },
-    async (request: FastifyRequest<{ Params: AssignmentParams }>, reply: FastifyReply) => {
-      const { id } = request.params;
+    async (request, reply) => {
+      const { id } = request.params as AssignmentParams;
 
       const assignment = await prisma.userOnDocument.findUnique({
         where: { id },
@@ -133,14 +138,16 @@ export async function userDocumentRoutes(app: FastifyInstance) {
     }
   );
 
-  // POST /user-documents - Crea una nuova assegnazione
+  // POST /user-documents - Crea una nuova assegnazione (solo admin)
   app.post(
     "/user-documents",
     {
+      preHandler: adminMiddleware,
       schema: {
         summary: "Assegna un documento a un utente",
-        description: "Crea un'associazione tra un utente e un documento con un ruolo specifico",
+        description: "Crea un'associazione tra un utente e un documento con un ruolo specifico. Solo admin.",
         tags: ["user-documents"],
+        security: [{ bearerAuth: [] }],
         body: {
           type: "object",
           properties: {
@@ -178,8 +185,8 @@ export async function userDocumentRoutes(app: FastifyInstance) {
         },
       },
     },
-    async (request: FastifyRequest<{ Body: CreateAssignmentBody }>, reply: FastifyReply) => {
-      const { userId, documentId, role = "viewer" } = request.body;
+    async (request, reply) => {
+      const { userId, documentId, role = "viewer" } = request.body as CreateAssignmentBody;
 
       // Verifica che l'utente esista
       const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -223,14 +230,16 @@ export async function userDocumentRoutes(app: FastifyInstance) {
     }
   );
 
-  // PUT /user-documents/:id - Aggiorna un'assegnazione (cambia ruolo)
+  // PUT /user-documents/:id - Aggiorna un'assegnazione (solo admin)
   app.put(
     "/user-documents/:id",
     {
+      preHandler: adminMiddleware,
       schema: {
         summary: "Aggiorna un'assegnazione",
-        description: "Modifica il ruolo di un'assegnazione esistente",
+        description: "Modifica il ruolo di un'assegnazione esistente. Solo admin.",
         tags: ["user-documents"],
+        security: [{ bearerAuth: [] }],
         params: {
           type: "object",
           properties: {
@@ -267,12 +276,9 @@ export async function userDocumentRoutes(app: FastifyInstance) {
         },
       },
     },
-    async (
-      request: FastifyRequest<{ Params: AssignmentParams; Body: UpdateAssignmentBody }>,
-      reply: FastifyReply
-    ) => {
-      const { id } = request.params;
-      const { role } = request.body;
+    async (request, reply) => {
+      const { id } = request.params as AssignmentParams;
+      const { role } = request.body as UpdateAssignmentBody;
 
       try {
         const assignment = await prisma.userOnDocument.update({
@@ -299,14 +305,16 @@ export async function userDocumentRoutes(app: FastifyInstance) {
     }
   );
 
-  // DELETE /user-documents/:id - Elimina un'assegnazione
+  // DELETE /user-documents/:id - Elimina un'assegnazione (solo admin)
   app.delete(
     "/user-documents/:id",
     {
+      preHandler: adminMiddleware,
       schema: {
         summary: "Elimina un'assegnazione",
-        description: "Rimuove l'associazione tra un utente e un documento",
+        description: "Rimuove l'associazione tra un utente e un documento. Solo admin.",
         tags: ["user-documents"],
+        security: [{ bearerAuth: [] }],
         params: {
           type: "object",
           properties: {
@@ -330,8 +338,8 @@ export async function userDocumentRoutes(app: FastifyInstance) {
         },
       },
     },
-    async (request: FastifyRequest<{ Params: AssignmentParams }>, reply: FastifyReply) => {
-      const { id } = request.params;
+    async (request, reply) => {
+      const { id } = request.params as AssignmentParams;
 
       try {
         await prisma.userOnDocument.delete({
