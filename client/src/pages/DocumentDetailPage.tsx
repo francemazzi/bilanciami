@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { ArrowLeft, Edit, Save, X, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Edit, Save, X, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getDocument, getDocumentPdfUrl, updateDocumentMetadata, type Document as DocType } from '@/api/documents';
+import { getDocument, getDocumentPdfUrl, updateDocumentMetadata, deleteDocument, type Document as DocType } from '@/api/documents';
 import { formatCurrency } from '@/lib/formatters';
 import { exportSingleDocument, type ExportFormat } from '@/lib/export';
 import { ExportDropdown } from '@/components/documents/ExportDropdown';
@@ -80,6 +80,7 @@ export function DocumentDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editedMetadata, setEditedMetadata] = useState<Invoice | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // PDF viewer state
   const [numPages, setNumPages] = useState<number>(0);
@@ -132,6 +133,22 @@ export function DocumentDetailPage() {
   const handleExport = (format: ExportFormat) => {
     if (document) {
       exportSingleDocument(document, format);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!id) return;
+    if (!window.confirm('Sei sicuro di voler eliminare questa fattura? L\'operazione non è reversibile.')) return;
+
+    try {
+      setIsDeleting(true);
+      await deleteDocument(id);
+      navigate('/documents');
+    } catch (err) {
+      console.error('Failed to delete:', err);
+      alert('Errore nell\'eliminazione del documento');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -239,6 +256,14 @@ export function DocumentDetailPage() {
               <Button size="sm" onClick={() => setIsEditing(true)}>
                 <Edit className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Modifica</span>
+              </Button>
+              <Button size="sm" variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+                {isDeleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin sm:mr-2" />
+                ) : (
+                  <Trash2 className="h-4 w-4 sm:mr-2" />
+                )}
+                <span className="hidden sm:inline">Elimina</span>
               </Button>
             </>
           )}

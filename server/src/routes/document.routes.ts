@@ -75,6 +75,7 @@ export async function documentRoutes(app: FastifyInstance) {
                 dueDate: { type: "string", nullable: true },
                 totalAmount: { type: "string", nullable: true },
                 pdfStoragePath: { type: "string", nullable: true },
+                followUpStatus: { type: "string", nullable: true },
                 createdAt: { type: "string" },
                 updatedAt: { type: "string" },
               },
@@ -156,6 +157,7 @@ export async function documentRoutes(app: FastifyInstance) {
               dueDate: { type: "string", nullable: true },
               totalAmount: { type: "string", nullable: true },
               pdfStoragePath: { type: "string", nullable: true },
+              followUpStatus: { type: "string", nullable: true },
               createdAt: { type: "string" },
               updatedAt: { type: "string" },
               users: {
@@ -797,6 +799,83 @@ export async function documentRoutes(app: FastifyInstance) {
         select: {
           id: true,
           metadata: true,
+          updatedAt: true,
+        },
+      });
+
+      return document;
+    }
+  );
+
+  // PATCH /documents/:id/follow-up - Aggiorna lo stato follow-up
+  app.patch(
+    "/documents/:id/follow-up",
+    {
+      preHandler: authMiddleware,
+      schema: {
+        summary: "Aggiorna stato follow-up documento",
+        description: "Modifica lo stato di follow-up di un documento",
+        tags: ["documents"],
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+          },
+          required: ["id"],
+        },
+        body: {
+          type: "object",
+          properties: {
+            followUpStatus: {
+              type: "string",
+              enum: ["gestita", "richiesta_saldo", "sollecitata", "da_gestire"],
+              nullable: true,
+            },
+          },
+          required: ["followUpStatus"],
+        },
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              followUpStatus: { type: "string", nullable: true },
+              updatedAt: { type: "string" },
+            },
+          },
+          404: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as DocumentParams;
+      const { followUpStatus } = request.body as { followUpStatus: string | null };
+      const userId = request.user?.id;
+
+      const assignment = await prisma.userOnDocument.findFirst({
+        where: {
+          documentId: id,
+          userId,
+          role: { in: ["editor", "owner"] },
+        },
+      });
+
+      if (!assignment) {
+        return reply.status(404).send({ error: "Documento non trovato o accesso negato" });
+      }
+
+      const document = await prisma.document.update({
+        where: { id },
+        data: { followUpStatus },
+        select: {
+          id: true,
+          followUpStatus: true,
           updatedAt: true,
         },
       });

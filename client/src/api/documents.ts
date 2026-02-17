@@ -1,5 +1,7 @@
 import { apiRequest } from './client';
 
+export type FollowUpStatus = 'gestita' | 'richiesta_saldo' | 'sollecitata' | 'da_gestire';
+
 export interface Document {
   id: string;
   extractionDate: string;
@@ -15,6 +17,7 @@ export interface Document {
   dueDate: string | null;
   totalAmount: string | null;
   pdfStoragePath: string | null;
+  followUpStatus: FollowUpStatus | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -71,4 +74,14 @@ export async function deleteDocument(id: string): Promise<{ message: string }> {
 
 export function getDocumentPdfUrl(id: string): string {
   return `/api/v1/documents/${id}/pdf`;
+}
+
+export async function updateFollowUpStatus(
+  id: string,
+  followUpStatus: FollowUpStatus | null
+): Promise<{ id: string; followUpStatus: FollowUpStatus | null; updatedAt: string }> {
+  return apiRequest(`/documents/${id}/follow-up`, {
+    method: 'PATCH',
+    body: JSON.stringify({ followUpStatus }),
+  });
 }

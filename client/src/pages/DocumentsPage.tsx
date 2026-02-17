@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { FileText, Upload, FolderTree, TableIcon, Loader2 } from 'lucide-react';
+import { FileText, Upload, FolderTree, TableIcon, Columns3, Loader2 } from 'lucide-react';
 import { FileExplorer } from '@/components/documents/FileExplorer';
 import { DocumentsTable } from '@/components/documents/DocumentsTable';
+import { KanbanBoard } from '@/components/documents/KanbanBoard';
 import { getDocuments, type Document } from '@/api/documents';
 
-type ViewMode = 'explorer' | 'table';
+type ViewMode = 'explorer' | 'table' | 'kanban';
 
 export function DocumentsPage() {
   const navigate = useNavigate();
@@ -111,7 +112,18 @@ export function DocumentsPage() {
               }`}
             >
               <TableIcon className="h-4 w-4" />
-              Tabella
+              <span className="hidden sm:inline">Tabella</span>
+            </button>
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={`flex items-center gap-1.5 px-2 sm:px-3 py-2 text-sm border-l ${
+                viewMode === 'kanban'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <Columns3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Scadenze</span>
             </button>
           </div>
           <Button asChild size="sm">
@@ -125,8 +137,10 @@ export function DocumentsPage() {
 
       {viewMode === 'explorer' ? (
         <FileExplorer />
-      ) : (
+      ) : viewMode === 'table' ? (
         <DocumentsTable documents={documents} onDocumentClick={handleDocumentClick} />
+      ) : (
+        <KanbanBoard documents={documents} onDocumentsChange={setDocuments} />
       )}
     </div>
   );

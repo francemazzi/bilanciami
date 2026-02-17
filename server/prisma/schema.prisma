@@ -91,6 +91,9 @@ model Document {
   // Storage PDF originale
   pdfStoragePath String?   // Path al file PDF salvato su disco
 
+  // Stato follow-up: "gestita" | "richiesta_saldo" | "sollecitata" | "da_gestire"
+  followUpStatus String?
+
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -100,6 +103,7 @@ model Document {
   @@index([customerName, supplierName])
   @@index([dueDate])
   @@index([supplierName])
+  @@index([followUpStatus])
   @@map("documents")
 }
 
