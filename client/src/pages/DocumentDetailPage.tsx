@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { ArrowLeft, Edit, Save, X, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit, Save, X, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Trash2, CheckCircle2, Circle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getDocument, getDocumentPdfUrl, updateDocumentMetadata, deleteDocument, type Document as DocType } from '@/api/documents';
+import { getDocument, getDocumentPdfUrl, updateDocumentMetadata, deleteDocument, updateDocumentDone, updateDocumentUserNotes, type Document as DocType } from '@/api/documents';
+import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/formatters';
 import { exportSingleDocument, type ExportFormat } from '@/lib/export';
 import { ExportDropdown } from '@/components/documents/ExportDropdown';
@@ -152,6 +153,43 @@ export function DocumentDetailPage() {
     }
   };
 
+  const handleToggleDone = useCallback(async () => {
+    if (!document || !id) return;
+    const newDone = !document.done;
+    setDocument((prev) => prev ? { ...prev, done: newDone } : prev);
+    try {
+      await updateDocumentDone(id, newDone);
+      toast.success(newDone ? 'Segnato come fatto' : 'Segnato come da fare');
+    } catch {
+      setDocument((prev) => prev ? { ...prev, done: !newDone } : prev);
+      toast.error('Errore nell\'aggiornamento');
+    }
+  }, [document, id]);
+
+  const [userNotes, setUserNotes] = useState('');
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+
+  useEffect(() => {
+    if (document) {
+      setUserNotes(document.userNotes || '');
+    }
+  }, [document]);
+
+  const handleSaveNotes = useCallback(async () => {
+    if (!id) return;
+    try {
+      setIsSavingNotes(true);
+      const notes = userNotes.trim() || null;
+      await updateDocumentUserNotes(id, notes);
+      setDocument((prev) => prev ? { ...prev, userNotes: notes } : prev);
+      toast.success('Note salvate');
+    } catch {
+      toast.error('Errore nel salvataggio delle note');
+    } finally {
+      setIsSavingNotes(false);
+    }
+  }, [id, userNotes]);
+
   const updateField = (path: string, value: unknown) => {
     setEditedMetadata((prev) => {
       if (!prev) return prev;
@@ -252,6 +290,19 @@ export function DocumentDetailPage() {
             </>
           ) : (
             <>
+              <Button
+                size="sm"
+                variant={document.done ? 'default' : 'outline'}
+                onClick={handleToggleDone}
+                className={document.done ? 'bg-green-600 hover:bg-green-700' : ''}
+              >
+                {document.done ? (
+                  <CheckCircle2 className="h-4 w-4 sm:mr-2" />
+                ) : (
+                  <Circle className="h-4 w-4 sm:mr-2" />
+                )}
+                <span className="hidden sm:inline">{document.done ? 'Fatto' : 'Da fare'}</span>
+              </Button>
               <ExportDropdown onExport={handleExport} />
               <Button size="sm" onClick={() => setIsEditing(true)}>
                 <Edit className="h-4 w-4 sm:mr-2" />
@@ -583,6 +634,36 @@ export function DocumentDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Note utente */}
+          <Card>
+            <CardHeader className="py-3">
+              <CardTitle className="text-lg">Note personali</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <textarea
+                value={userNotes}
+                onChange={(e) => setUserNotes(e.target.value)}
+                placeholder="Aggiungi note su questa fattura..."
+                rows={3}
+                className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+              />
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  onClick={handleSaveNotes}
+                  disabled={isSavingNotes || userNotes === (document.userNotes || '')}
+                >
+                  {isSavingNotes ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  Salva note
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

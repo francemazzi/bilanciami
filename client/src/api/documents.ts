@@ -18,6 +18,8 @@ export interface Document {
   totalAmount: string | null;
   pdfStoragePath: string | null;
   followUpStatus: FollowUpStatus | null;
+  done: boolean;
+  userNotes: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -83,5 +85,25 @@ export async function updateFollowUpStatus(
   return apiRequest(`/documents/${id}/follow-up`, {
     method: 'PATCH',
     body: JSON.stringify({ followUpStatus }),
+  });
+}
+
+export async function updateDocumentDone(
+  id: string,
+  done: boolean
+): Promise<{ id: string; done: boolean; updatedAt: string }> {
+  return apiRequest(`/documents/${id}/done`, {
+    method: 'PATCH',
+    body: JSON.stringify({ done }),
+  });
+}
+
+export async function updateDocumentUserNotes(
+  id: string,
+  userNotes: string | null
+): Promise<{ id: string; userNotes: string | null; updatedAt: string }> {
+  return apiRequest(`/documents/${id}/user-notes`, {
+    method: 'PATCH',
+    body: JSON.stringify({ userNotes }),
   });
 }

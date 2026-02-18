@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, StickyNote } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { exportDocuments, type ExportFormat } from '@/lib/export';
@@ -31,12 +31,13 @@ function getTotalAmount(doc: Document): number | null {
 interface DocumentsTableProps {
   documents: Document[];
   onDocumentClick: (doc: Document) => void;
+  onToggleDone?: (docId: string, done: boolean) => void;
 }
 
 type SortField = 'fileName' | 'supplierName' | 'customerName' | 'dueDate' | 'totalAmount';
 type SortOrder = 'asc' | 'desc';
 
-export function DocumentsTable({ documents, onDocumentClick }: DocumentsTableProps) {
+export function DocumentsTable({ documents, onDocumentClick, onToggleDone }: DocumentsTableProps) {
   const [sortField, setSortField] = useState<SortField>('dueDate');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [filters, setFilters] = useState({
@@ -207,12 +208,14 @@ export function DocumentsTable({ documents, onDocumentClick }: DocumentsTablePro
                   <SortIcon field="totalAmount" />
                 </div>
               </TableHead>
+              <TableHead className="w-16 text-center">Fatto</TableHead>
+              <TableHead className="max-w-[200px]">Note</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredAndSortedDocs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                <TableCell colSpan={7} className="text-center text-gray-500 py-8">
                   Nessun documento trovato
                 </TableCell>
               </TableRow>
@@ -220,7 +223,7 @@ export function DocumentsTable({ documents, onDocumentClick }: DocumentsTablePro
               filteredAndSortedDocs.map((doc) => (
                 <TableRow
                   key={doc.id}
-                  className="cursor-pointer hover:bg-gray-50"
+                  className={`cursor-pointer hover:bg-gray-50 ${doc.done ? 'opacity-60' : ''}`}
                   onClick={() => onDocumentClick(doc)}
                 >
                   <TableCell className="font-medium">{doc.fileName}</TableCell>
@@ -231,6 +234,26 @@ export function DocumentsTable({ documents, onDocumentClick }: DocumentsTablePro
                   </TableCell>
                   <TableCell className="text-right">
                     {getTotalAmount(doc) !== null ? formatCurrency(getTotalAmount(doc)!) : '-'}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <input
+                      type="checkbox"
+                      checked={doc.done}
+                      onChange={(e) => {
+                        onToggleDone?.(doc.id, e.target.checked);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                    />
+                  </TableCell>
+                  <TableCell className="max-w-[200px]">
+                    {doc.userNotes ? (
+                      <span className="text-xs text-gray-600 truncate block" title={doc.userNotes}>
+                        {doc.userNotes}
+                      </span>
+                    ) : (
+                      <span className="text-gray-300">-</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))
@@ -249,11 +272,22 @@ export function DocumentsTable({ documents, onDocumentClick }: DocumentsTablePro
           filteredAndSortedDocs.map((doc) => (
             <div
               key={doc.id}
-              className="border rounded-lg p-4 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
+              className={`border rounded-lg p-4 cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors ${doc.done ? 'opacity-60 border-green-200 bg-green-50/30' : ''}`}
               onClick={() => onDocumentClick(doc)}
             >
               <div className="flex justify-between items-start mb-2">
-                <p className="font-medium text-sm truncate flex-1 mr-2">{doc.fileName}</p>
+                <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
+                  <input
+                    type="checkbox"
+                    checked={doc.done}
+                    onChange={(e) => {
+                      onToggleDone?.(doc.id, e.target.checked);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-4 w-4 shrink-0 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                  />
+                  <p className={`font-medium text-sm truncate ${doc.done ? 'line-through' : ''}`}>{doc.fileName}</p>
+                </div>
                 <p className="font-bold text-sm whitespace-nowrap">
                   {getTotalAmount(doc) !== null ? formatCurrency(getTotalAmount(doc)!) : '-'}
                 </p>
@@ -272,6 +306,12 @@ export function DocumentsTable({ documents, onDocumentClick }: DocumentsTablePro
                 <p className="text-xs text-gray-500 mt-2">
                   Scadenza: {formatDate(getDueDate(doc)!)}
                 </p>
+              )}
+              {doc.userNotes && (
+                <div className="flex items-start gap-1 mt-2 text-xs text-gray-500">
+                  <StickyNote className="h-3 w-3 shrink-0 mt-0.5" />
+                  <p className="truncate">{doc.userNotes}</p>
+                </div>
               )}
             </div>
           ))

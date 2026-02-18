@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreVertical, Calendar, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { MoreVertical, Calendar, AlertCircle, ChevronDown, ChevronRight, CheckCircle2, StickyNote } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { buildKanbanColumns, type KanbanColumn } from '@/lib/kanban-utils';
 import {
@@ -72,14 +72,17 @@ function KanbanCard({ doc, onStatusChange, onClick }: KanbanCardProps) {
 
   return (
     <Card
-      className="cursor-pointer hover:shadow-md transition-shadow active:shadow-sm"
+      className={`cursor-pointer hover:shadow-md transition-shadow active:shadow-sm ${doc.done ? 'opacity-60 border-green-200' : ''}`}
       onClick={() => onClick(doc)}
     >
       <CardContent className="p-3 space-y-2">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-semibold truncate flex-1">
-            {doc.supplierName}
-          </p>
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            {doc.done && <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />}
+            <p className={`text-sm font-semibold truncate ${doc.done ? 'line-through' : ''}`}>
+              {doc.supplierName}
+            </p>
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -126,6 +129,13 @@ function KanbanCard({ doc, onStatusChange, onClick }: KanbanCardProps) {
             </span>
           )}
         </div>
+
+        {doc.userNotes && (
+          <div className="flex items-start gap-1 text-xs text-muted-foreground">
+            <StickyNote className="h-3 w-3 shrink-0 mt-0.5" />
+            <p className="truncate">{doc.userNotes}</p>
+          </div>
+        )}
 
         <Badge variant="outline" className={`text-[11px] px-2 py-0.5 ${getFollowUpBadgeClass(doc.followUpStatus)}`}>
           {getFollowUpLabel(doc.followUpStatus)}

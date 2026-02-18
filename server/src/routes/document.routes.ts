@@ -76,6 +76,8 @@ export async function documentRoutes(app: FastifyInstance) {
                 totalAmount: { type: "string", nullable: true },
                 pdfStoragePath: { type: "string", nullable: true },
                 followUpStatus: { type: "string", nullable: true },
+                done: { type: "boolean" },
+                userNotes: { type: "string", nullable: true },
                 createdAt: { type: "string" },
                 updatedAt: { type: "string" },
               },
@@ -158,6 +160,8 @@ export async function documentRoutes(app: FastifyInstance) {
               totalAmount: { type: "string", nullable: true },
               pdfStoragePath: { type: "string", nullable: true },
               followUpStatus: { type: "string", nullable: true },
+              done: { type: "boolean" },
+              userNotes: { type: "string", nullable: true },
               createdAt: { type: "string" },
               updatedAt: { type: "string" },
               users: {
@@ -876,6 +880,152 @@ export async function documentRoutes(app: FastifyInstance) {
         select: {
           id: true,
           followUpStatus: true,
+          updatedAt: true,
+        },
+      });
+
+      return document;
+    }
+  );
+
+  // PATCH /documents/:id/done - Aggiorna lo stato "fatto"
+  app.patch(
+    "/documents/:id/done",
+    {
+      preHandler: authMiddleware,
+      schema: {
+        summary: "Aggiorna stato fatto documento",
+        description: "Segna un documento come fatto/non fatto",
+        tags: ["documents"],
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+          },
+          required: ["id"],
+        },
+        body: {
+          type: "object",
+          properties: {
+            done: { type: "boolean" },
+          },
+          required: ["done"],
+        },
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              done: { type: "boolean" },
+              updatedAt: { type: "string" },
+            },
+          },
+          404: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as DocumentParams;
+      const { done } = request.body as { done: boolean };
+      const userId = request.user?.id;
+
+      const assignment = await prisma.userOnDocument.findFirst({
+        where: {
+          documentId: id,
+          userId,
+          role: { in: ["editor", "owner"] },
+        },
+      });
+
+      if (!assignment) {
+        return reply.status(404).send({ error: "Documento non trovato o accesso negato" });
+      }
+
+      const document = await prisma.document.update({
+        where: { id },
+        data: { done },
+        select: {
+          id: true,
+          done: true,
+          updatedAt: true,
+        },
+      });
+
+      return document;
+    }
+  );
+
+  // PATCH /documents/:id/user-notes - Aggiorna le note utente
+  app.patch(
+    "/documents/:id/user-notes",
+    {
+      preHandler: authMiddleware,
+      schema: {
+        summary: "Aggiorna note utente documento",
+        description: "Modifica le note personali dell'utente su un documento",
+        tags: ["documents"],
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+          },
+          required: ["id"],
+        },
+        body: {
+          type: "object",
+          properties: {
+            userNotes: { type: "string", nullable: true },
+          },
+          required: ["userNotes"],
+        },
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              userNotes: { type: "string", nullable: true },
+              updatedAt: { type: "string" },
+            },
+          },
+          404: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as DocumentParams;
+      const { userNotes } = request.body as { userNotes: string | null };
+      const userId = request.user?.id;
+
+      const assignment = await prisma.userOnDocument.findFirst({
+        where: {
+          documentId: id,
+          userId,
+          role: { in: ["editor", "owner"] },
+        },
+      });
+
+      if (!assignment) {
+        return reply.status(404).send({ error: "Documento non trovato o accesso negato" });
+      }
+
+      const document = await prisma.document.update({
+        where: { id },
+        data: { userNotes },
+        select: {
+          id: true,
+          userNotes: true,
           updatedAt: true,
         },
       });

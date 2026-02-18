@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -6,7 +6,8 @@ import { FileText, Upload, FolderTree, TableIcon, Columns3, Loader2 } from 'luci
 import { FileExplorer } from '@/components/documents/FileExplorer';
 import { DocumentsTable } from '@/components/documents/DocumentsTable';
 import { KanbanBoard } from '@/components/documents/KanbanBoard';
-import { getDocuments, type Document } from '@/api/documents';
+import { getDocuments, updateDocumentDone, type Document } from '@/api/documents';
+import { toast } from 'sonner';
 
 type ViewMode = 'explorer' | 'table' | 'kanban';
 
@@ -37,6 +38,18 @@ export function DocumentsPage() {
   const handleDocumentClick = (doc: Document) => {
     navigate(`/documents/${doc.id}`);
   };
+
+  const handleToggleDone = useCallback(async (docId: string, done: boolean) => {
+    const prev = documents;
+    setDocuments((docs) => docs.map((d) => d.id === docId ? { ...d, done } : d));
+    try {
+      await updateDocumentDone(docId, done);
+      toast.success(done ? 'Segnato come fatto' : 'Segnato come da fare');
+    } catch {
+      setDocuments(prev);
+      toast.error('Errore nell\'aggiornamento');
+    }
+  }, [documents]);
 
   if (isLoading) {
     return (
@@ -138,7 +151,7 @@ export function DocumentsPage() {
       {viewMode === 'explorer' ? (
         <FileExplorer />
       ) : viewMode === 'table' ? (
-        <DocumentsTable documents={documents} onDocumentClick={handleDocumentClick} />
+        <DocumentsTable documents={documents} onDocumentClick={handleDocumentClick} onToggleDone={handleToggleDone} />
       ) : (
         <KanbanBoard documents={documents} onDocumentsChange={setDocuments} />
       )}
