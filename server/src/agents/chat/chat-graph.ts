@@ -127,6 +127,7 @@ export function getChatAgentGraph() {
 export async function chat(
   userInput: string,
   userId: string,
+  userName: string,
   llmSettings: LLMSettings,
   threadId?: string
 ) {
@@ -142,6 +143,7 @@ export async function chat(
     {
       userInput,
       userId,
+      userName,
       llmSettings,
       threadId: config.configurable.thread_id,
     },

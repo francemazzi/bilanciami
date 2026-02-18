@@ -53,6 +53,12 @@ export const ChatAgentState = Annotation.Root({
   // ID utente per filtrare i documenti
   userId: Annotation<string>,
 
+  // Nome utente per contestualizzare le risposte
+  userName: Annotation<string>({
+    default: () => "",
+    reducer: (existing, newVal) => newVal || existing,
+  }),
+
   // Settings LLM dell'utente
   llmSettings: Annotation<LLMSettings | null>({
     default: () => null,

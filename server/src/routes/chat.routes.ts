@@ -108,7 +108,8 @@ export async function chatRoutes(app: FastifyInstance) {
       }
 
       try {
-        const result = await chat(message, userId, llmSettings, threadId);
+        const userName = request.user!.name;
+        const result = await chat(message, userId, userName, llmSettings, threadId);
 
         return {
           response: result.response,
