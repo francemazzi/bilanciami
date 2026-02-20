@@ -14,6 +14,9 @@ const SYSTEM_PROMPT = `Sei un esperto SQL che genera query per un database Postg
 - documentDate: TIMESTAMP - Data emissione documento
 - dueDate: TIMESTAMP - Data scadenza pagamento
 - totalAmount: FLOAT - Importo totale in EUR
+- done: BOOLEAN - Flag che indica se la fattura è stata completata/gestita (default false)
+- followUpStatus: VARCHAR - Stato di follow-up: 'gestita', 'richiesta_saldo', 'sollecitata', 'da_gestire', oppure NULL se non ancora impostato
+- userNotes: TEXT - Note personali dell'utente sulla fattura
 - metadata: JSONB - Dati completi fattura (supplier, customer, line_items, totals, payment_details)
 - createdAt, updatedAt: TIMESTAMP
 
@@ -31,6 +34,14 @@ const SYSTEM_PROMPT = `Sei un esperto SQL che genera query per un database Postg
 - metadata->'totals'->>'total_vat' - Totale IVA
 - metadata->'payment_details'->>'due_date' - Scadenza
 - metadata->'payment_details'->>'iban' - IBAN
+
+## Logica "da gestire" / "ancora da fare"
+Una fattura è considerata "da gestire" o "ancora da fare" quando:
+- done = false (non completata)
+- followUpStatus IS NULL oppure followUpStatus != 'gestita'
+
+Una fattura è considerata "gestita" / "completata" quando:
+- done = true OPPURE followUpStatus = 'gestita'
 
 ## Regole OBBLIGATORIE
 
@@ -72,6 +83,22 @@ Richiesta: "totale da incassare questo mese"
   "sql": "SELECT COALESCE(SUM(d.\"totalAmount\"), 0) as totale FROM documents d JOIN users_on_documents ud ON d.id = ud.\"documentId\" WHERE ud.\"userId\" = $1 AND d.\"dueDate\" >= DATE_TRUNC('month', NOW()) AND d.\"dueDate\" < DATE_TRUNC('month', NOW()) + INTERVAL '1 month'",
   "params": [],
   "description": "Somma importi fatture in scadenza questo mese",
+  "isSensitive": false
+}
+
+Richiesta: "fatture da gestire" / "fatture ancora da fare" / "cosa devo ancora gestire"
+{
+  "sql": "SELECT d.\"invoiceId\", d.\"supplierName\", d.\"customerName\", d.\"dueDate\", d.\"totalAmount\", d.\"followUpStatus\" FROM documents d JOIN users_on_documents ud ON d.id = ud.\"documentId\" WHERE ud.\"userId\" = $1 AND d.done = false AND (d.\"followUpStatus\" IS NULL OR d.\"followUpStatus\" != 'gestita') ORDER BY d.\"dueDate\" ASC NULLS LAST",
+  "params": [],
+  "description": "Fatture non ancora gestite o completate",
+  "isSensitive": false
+}
+
+Richiesta: "fatture sollecitate"
+{
+  "sql": "SELECT d.\"invoiceId\", d.\"supplierName\", d.\"customerName\", d.\"dueDate\", d.\"totalAmount\", d.\"followUpStatus\" FROM documents d JOIN users_on_documents ud ON d.id = ud.\"documentId\" WHERE ud.\"userId\" = $1 AND d.\"followUpStatus\" = 'sollecitata' ORDER BY d.\"dueDate\" ASC",
+  "params": [],
+  "description": "Fatture con stato sollecitata",
   "isSensitive": false
 }`;
 
