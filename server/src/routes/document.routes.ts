@@ -1122,14 +1122,22 @@ export async function documentRoutes(app: FastifyInstance) {
       const supplier = metadata.supplier as
         | Record<string, unknown>
         | undefined;
-      const emailTo =
+
+      // Try to find email: customer PEC > supplier email > extract from notes/userNotes
+      const emailRegex = /[\w.+-]+@[\w.-]+\.\w{2,}/;
+      let emailTo =
         (customer?.pec as string) || (supplier?.email as string) || "";
 
       if (!emailTo) {
-        return reply.status(400).send({
-          error:
-            "Nessun indirizzo email disponibile (PEC cliente o email fornitore)",
-        });
+        const notes = metadata.notes as string[] | undefined;
+        const notesText = [
+          ...(notes || []),
+          (document as Record<string, unknown>).userNotes as string || "",
+        ].join(" ");
+        const match = notesText.match(emailRegex);
+        if (match) {
+          emailTo = match[0];
+        }
       }
 
       const llmSettings = await getFullLLMSettings(userId);

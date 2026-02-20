@@ -741,9 +741,13 @@ export function DocumentDetailPage() {
                     Copia
                   </Button>
                 </div>
-                <div className="px-3 py-2 bg-gray-50 rounded-md text-sm border">
-                  {sollecitoData.emailTo}
-                </div>
+                <input
+                  type="email"
+                  value={sollecitoData.emailTo}
+                  onChange={(e) => setSollecitoData({ ...sollecitoData, emailTo: e.target.value })}
+                  placeholder="Inserisci indirizzo email..."
+                  className="w-full px-3 py-2 bg-gray-50 rounded-md text-sm border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
               </div>
 
               {/* Oggetto */}
