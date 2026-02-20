@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1"/>
+      <stop offset="100%" style="stop-color:#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Balance scale -->
+  <!-- Center pillar -->
+  <rect x="244" y="180" width="24" height="200" rx="6" fill="white" opacity="0.95"/>
+  <!-- Base -->
+  <rect x="196" y="360" width="120" height="20" rx="10" fill="white" opacity="0.85"/>
+  <!-- Beam -->
+  <rect x="116" y="170" width="280" height="16" rx="8" fill="white" opacity="0.95"/>
+  <!-- Fulcrum triangle -->
+  <polygon points="256,148 272,174 240,174" fill="white" opacity="0.95"/>
+  <!-- Left pan -->
+  <path d="M136,196 L116,280 Q116,300 156,300 Q196,300 196,280 L176,196" fill="white" opacity="0.75"/>
+  <!-- Right pan -->
+  <path d="M336,196 L316,280 Q316,300 356,300 Q396,300 396,280 L376,196" fill="white" opacity="0.75"/>
+  <!-- Left chain lines -->
+  <line x1="136" y1="186" x2="136" y2="196" stroke="white" stroke-width="4" stroke-linecap="round" opacity="0.9"/>
+  <line x1="176" y1="186" x2="176" y2="196" stroke="white" stroke-width="4" stroke-linecap="round" opacity="0.9"/>
+  <!-- Right chain lines -->
+  <line x1="336" y1="186" x2="336" y2="196" stroke="white" stroke-width="4" stroke-linecap="round" opacity="0.9"/>
+  <line x1="376" y1="186" x2="376" y2="196" stroke="white" stroke-width="4" stroke-linecap="round" opacity="0.9"/>
+</svg>

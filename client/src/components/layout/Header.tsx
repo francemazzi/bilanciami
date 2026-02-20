@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { FileText, Upload, FolderOpen, LogOut, User, Settings, ChevronDown, Menu, X, Shield } from 'lucide-react';
+import { Upload, FolderOpen, LogOut, User, Settings, ChevronDown, Menu, X, Shield, Scale } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth.store';
 import { isAdmin } from '@/components/auth/AdminRoute';
@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const navItems = [
-  { to: '/', label: 'Home', icon: FileText },
+  { to: '/', label: 'Home', icon: Scale },
   { to: '/upload', label: 'Carica PDF', icon: Upload },
   { to: '/documents', label: 'Documenti', icon: FolderOpen },
 ];
@@ -46,10 +46,14 @@ export function Header() {
     <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center justify-between px-4">
         {/* Logo */}
-        <div className="flex items-center space-x-2">
-          <FileText className="h-6 w-6" />
-          <span className="font-bold text-lg">Bilanciami</span>
-        </div>
+        <Link to="/" className="flex items-center space-x-2.5 group">
+          <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 shadow-sm group-hover:shadow-md transition-shadow">
+            <Scale className="h-4.5 w-4.5 text-white" />
+          </div>
+          <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
+            Bilanciami
+          </span>
+        </Link>
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
