@@ -21,6 +21,7 @@ import type { LicenseTier } from '@/api/settings';
 import { Users, Shield, Crown, Loader2 } from 'lucide-react';
 
 const TIER_COLORS: Record<LicenseTier, string> = {
+  blocked: 'bg-red-100 text-red-800',
   free: 'bg-gray-100 text-gray-800',
   starter: 'bg-blue-100 text-blue-800',
   professional: 'bg-purple-100 text-purple-800',

@@ -28,7 +28,7 @@ export interface OllamaModel {
   modified_at: string;
 }
 
-export type LicenseTier = 'free' | 'starter' | 'professional' | 'enterprise';
+export type LicenseTier = 'blocked' | 'free' | 'starter' | 'professional' | 'enterprise';
 
 export interface LicenseInfo {
   licenseTier: LicenseTier;

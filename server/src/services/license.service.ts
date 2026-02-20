@@ -2,13 +2,14 @@ import { prisma } from "../lib/prisma.js";
 
 // License tier limits
 export const LICENSE_LIMITS: Record<string, number> = {
+  blocked: 0,
   free: 20,
   starter: 100,
   professional: 500,
   enterprise: -1, // unlimited
 };
 
-export const LICENSE_TIERS = ["free", "starter", "professional", "enterprise"] as const;
+export const LICENSE_TIERS = ["blocked", "free", "starter", "professional", "enterprise"] as const;
 export type LicenseTier = (typeof LICENSE_TIERS)[number];
 
 export interface UserLicenseInfo {
