@@ -4,6 +4,9 @@ import { prisma } from "../lib/prisma.js";
 import { generateDocumentPath } from "../lib/document-path.js";
 import { getPdf, pdfExists } from "../services/storage.service.js";
 import { authMiddleware } from "../middleware/auth.middleware.js";
+import { getFullLLMSettings } from "../services/settings.service.js";
+import { createTextLLM } from "../services/llm.service.js";
+import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 
 interface DocumentParams {
   id: string;
@@ -1031,6 +1034,190 @@ export async function documentRoutes(app: FastifyInstance) {
       });
 
       return document;
+    }
+  );
+
+  // POST /documents/:id/sollecito - Genera email sollecito pagamento con LLM
+  app.post(
+    "/documents/:id/sollecito",
+    {
+      preHandler: authMiddleware,
+      schema: {
+        summary: "Genera sollecito pagamento",
+        description:
+          "Genera un'email di sollecito pagamento professionale usando l'LLM configurato dall'utente",
+        tags: ["documents"],
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+          },
+          required: ["id"],
+        },
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              emailTo: { type: "string" },
+              subject: { type: "string" },
+              body: { type: "string" },
+            },
+          },
+          400: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+            },
+          },
+          401: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+            },
+          },
+          404: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+            },
+          },
+          500: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params as DocumentParams;
+      const userId = request.user?.id;
+      if (!userId) {
+        return reply.status(401).send({ error: "Non autenticato" });
+      }
+
+      const document = await prisma.document.findFirst({
+        where: {
+          id,
+          users: { some: { userId } },
+        },
+      });
+
+      if (!document) {
+        return reply.status(404).send({ error: "Documento non trovato" });
+      }
+
+      const metadata = document.metadata as Record<string, unknown> | null;
+      if (!metadata) {
+        return reply
+          .status(400)
+          .send({ error: "Metadata del documento non disponibili" });
+      }
+
+      const customer = metadata.customer as
+        | Record<string, unknown>
+        | undefined;
+      const supplier = metadata.supplier as
+        | Record<string, unknown>
+        | undefined;
+      const emailTo =
+        (customer?.pec as string) || (supplier?.email as string) || "";
+
+      if (!emailTo) {
+        return reply.status(400).send({
+          error:
+            "Nessun indirizzo email disponibile (PEC cliente o email fornitore)",
+        });
+      }
+
+      const llmSettings = await getFullLLMSettings(userId);
+
+      if (llmSettings.provider === "openai" && !llmSettings.openaiApiKey) {
+        return reply.status(400).send({
+          error:
+            "Chiave API OpenAI non configurata. Vai nelle impostazioni per configurarla.",
+        });
+      }
+
+      try {
+        const llm = createTextLLM(llmSettings);
+
+        const invoiceId = metadata.invoice_id || document.invoiceId || "N/A";
+        const documentDate = metadata.document_date || "";
+        const customerName =
+          (customer?.name as string) || document.customerName;
+        const supplierName =
+          (supplier?.name as string) || document.supplierName;
+        const totals = metadata.totals as
+          | Record<string, unknown>
+          | undefined;
+        const totalAmount = totals?.total_amount ?? "";
+        const paymentDetails = metadata.payment_details as
+          | Record<string, unknown>
+          | undefined;
+        const dueDate = paymentDetails?.due_date || "";
+        const iban = paymentDetails?.iban || "";
+        const paymentMethod = paymentDetails?.payment_method || "";
+
+        const systemPrompt = `Sei un assistente specializzato nella generazione di comunicazioni professionali in italiano per la gestione contabile.
+Genera SEMPRE la risposta in formato JSON con esattamente questi campi:
+{
+  "subject": "oggetto dell'email",
+  "body": "corpo dell'email"
+}
+Il tono deve essere formale e professionale. L'email deve essere un sollecito di pagamento cortese ma fermo.
+Non includere markup HTML nel body, solo testo semplice con a capo (\\n).`;
+
+        const humanPrompt = `Genera un'email di sollecito pagamento con i seguenti dati della fattura:
+
+- Numero fattura: ${invoiceId}
+- Data documento: ${documentDate}
+- Fornitore (chi invia il sollecito): ${supplierName}
+- Cliente (destinatario del sollecito): ${customerName}
+- Importo totale: ${totalAmount} EUR
+- Data scadenza: ${dueDate}
+- Metodo pagamento: ${paymentMethod}
+- IBAN: ${iban}
+
+L'email deve:
+1. Essere indirizzata a "${customerName}"
+2. Ricordare cortesemente l'importo dovuto e la data di scadenza
+3. Includere i riferimenti della fattura
+4. Se disponibile, indicare l'IBAN per il pagamento
+5. Chiudere con un tono professionale e cordiale
+6. Essere firmata da "${supplierName}"
+
+Rispondi SOLO con il JSON, senza altro testo.`;
+
+        const messages = [
+          new SystemMessage(systemPrompt),
+          new HumanMessage(humanPrompt),
+        ];
+
+        const response =
+          llmSettings.provider === "openai"
+            ? await llm.invoke(messages, {
+                response_format: { type: "json_object" },
+              })
+            : await llm.invoke(messages);
+
+        const parsed = JSON.parse(response.content as string);
+
+        return {
+          emailTo,
+          subject: parsed.subject,
+          body: parsed.body,
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        request.log.error(`Sollecito generation error: ${errorMessage}`);
+        return reply.status(500).send({
+          error: "Errore nella generazione del sollecito",
+        });
+      }
     }
   );
 }

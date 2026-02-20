@@ -107,3 +107,15 @@ export async function updateDocumentUserNotes(
     body: JSON.stringify({ userNotes }),
   });
 }
+
+export interface SollecitoResponse {
+  emailTo: string;
+  subject: string;
+  body: string;
+}
+
+export async function generateSollecito(documentId: string): Promise<SollecitoResponse> {
+  return apiRequest<SollecitoResponse>(`/documents/${documentId}/sollecito`, {
+    method: 'POST',
+  });
+}

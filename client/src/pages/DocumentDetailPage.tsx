@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { ArrowLeft, Edit, Save, X, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Trash2, CheckCircle2, Circle } from 'lucide-react';
+import { ArrowLeft, Edit, Save, X, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Trash2, CheckCircle2, Circle, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getDocument, getDocumentPdfUrl, updateDocumentMetadata, deleteDocument, updateDocumentDone, updateDocumentUserNotes, type Document as DocType } from '@/api/documents';
+import { getDocument, getDocumentPdfUrl, updateDocumentMetadata, deleteDocument, updateDocumentDone, updateDocumentUserNotes, generateSollecito, type Document as DocType } from '@/api/documents';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/formatters';
 import { exportSingleDocument, type ExportFormat } from '@/lib/export';
@@ -82,6 +82,7 @@ export function DocumentDetailPage() {
   const [editedMetadata, setEditedMetadata] = useState<Invoice | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSendingSollecito, setIsSendingSollecito] = useState(false);
 
   // PDF viewer state
   const [numPages, setNumPages] = useState<number>(0);
@@ -165,6 +166,25 @@ export function DocumentDetailPage() {
       toast.error('Errore nell\'aggiornamento');
     }
   }, [document, id]);
+
+  const handleSollecito = useCallback(async () => {
+    if (!id) return;
+
+    try {
+      setIsSendingSollecito(true);
+      const result = await generateSollecito(id);
+
+      const mailtoUrl = `mailto:${encodeURIComponent(result.emailTo)}?subject=${encodeURIComponent(result.subject)}&body=${encodeURIComponent(result.body)}`;
+      window.location.href = mailtoUrl;
+
+      toast.success('Email di sollecito generata');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Errore nella generazione del sollecito';
+      toast.error(message);
+    } finally {
+      setIsSendingSollecito(false);
+    }
+  }, [id]);
 
   const [userNotes, setUserNotes] = useState('');
   const [isSavingNotes, setIsSavingNotes] = useState(false);
@@ -304,6 +324,19 @@ export function DocumentDetailPage() {
                 <span className="hidden sm:inline">{document.done ? 'Fatto' : 'Da fare'}</span>
               </Button>
               <ExportDropdown onExport={handleExport} />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleSollecito}
+                disabled={isSendingSollecito}
+              >
+                {isSendingSollecito ? (
+                  <Loader2 className="h-4 w-4 animate-spin sm:mr-2" />
+                ) : (
+                  <Mail className="h-4 w-4 sm:mr-2" />
+                )}
+                <span className="hidden sm:inline">Sollecito</span>
+              </Button>
               <Button size="sm" onClick={() => setIsEditing(true)}>
                 <Edit className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Modifica</span>
