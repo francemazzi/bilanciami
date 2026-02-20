@@ -117,5 +117,6 @@ export interface SollecitoResponse {
 export async function generateSollecito(documentId: string): Promise<SollecitoResponse> {
   return apiRequest<SollecitoResponse>(`/documents/${documentId}/sollecito`, {
     method: 'POST',
+    body: JSON.stringify({}),
   });
 }

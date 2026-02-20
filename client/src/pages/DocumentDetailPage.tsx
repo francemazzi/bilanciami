@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { ArrowLeft, Edit, Save, X, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Trash2, CheckCircle2, Circle, Mail } from 'lucide-react';
+import { ArrowLeft, Edit, Save, X, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Trash2, CheckCircle2, Circle, Mail, Copy, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getDocument, getDocumentPdfUrl, updateDocumentMetadata, deleteDocument, updateDocumentDone, updateDocumentUserNotes, generateSollecito, type Document as DocType } from '@/api/documents';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { getDocument, getDocumentPdfUrl, updateDocumentMetadata, deleteDocument, updateDocumentDone, updateDocumentUserNotes, generateSollecito, type Document as DocType, type SollecitoResponse } from '@/api/documents';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/formatters';
 import { exportSingleDocument, type ExportFormat } from '@/lib/export';
@@ -83,6 +84,8 @@ export function DocumentDetailPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSendingSollecito, setIsSendingSollecito] = useState(false);
+  const [sollecitoData, setSollecitoData] = useState<SollecitoResponse | null>(null);
+  const [showSollecitoDialog, setShowSollecitoDialog] = useState(false);
 
   // PDF viewer state
   const [numPages, setNumPages] = useState<number>(0);
@@ -173,11 +176,8 @@ export function DocumentDetailPage() {
     try {
       setIsSendingSollecito(true);
       const result = await generateSollecito(id);
-
-      const mailtoUrl = `mailto:${encodeURIComponent(result.emailTo)}?subject=${encodeURIComponent(result.subject)}&body=${encodeURIComponent(result.body)}`;
-      window.location.href = mailtoUrl;
-
-      toast.success('Email di sollecito generata');
+      setSollecitoData(result);
+      setShowSollecitoDialog(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Errore nella generazione del sollecito';
       toast.error(message);
@@ -185,6 +185,21 @@ export function DocumentDetailPage() {
       setIsSendingSollecito(false);
     }
   }, [id]);
+
+  const handleCopyField = useCallback(async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label} copiato`);
+    } catch {
+      toast.error('Errore nella copia');
+    }
+  }, []);
+
+  const handleSendSollecito = useCallback(() => {
+    if (!sollecitoData) return;
+    const mailtoUrl = `mailto:${encodeURIComponent(sollecitoData.emailTo)}?subject=${encodeURIComponent(sollecitoData.subject)}&body=${encodeURIComponent(sollecitoData.body)}`;
+    window.location.href = mailtoUrl;
+  }, [sollecitoData]);
 
   const [userNotes, setUserNotes] = useState('');
   const [isSavingNotes, setIsSavingNotes] = useState(false);
@@ -699,6 +714,89 @@ export function DocumentDetailPage() {
           </Card>
         </div>
       </div>
+
+      {/* Sollecito Dialog */}
+      <Dialog open={showSollecitoDialog} onOpenChange={setShowSollecitoDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Sollecito di pagamento</DialogTitle>
+            <DialogDescription>
+              Email generata automaticamente. Puoi copiare i campi o inviare direttamente.
+            </DialogDescription>
+          </DialogHeader>
+
+          {sollecitoData && (
+            <div className="space-y-4">
+              {/* Destinatario */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-sm font-medium text-gray-700">Destinatario</label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => handleCopyField(sollecitoData.emailTo, 'Destinatario')}
+                  >
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copia
+                  </Button>
+                </div>
+                <div className="px-3 py-2 bg-gray-50 rounded-md text-sm border">
+                  {sollecitoData.emailTo}
+                </div>
+              </div>
+
+              {/* Oggetto */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-sm font-medium text-gray-700">Oggetto</label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => handleCopyField(sollecitoData.subject, 'Oggetto')}
+                  >
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copia
+                  </Button>
+                </div>
+                <div className="px-3 py-2 bg-gray-50 rounded-md text-sm border">
+                  {sollecitoData.subject}
+                </div>
+              </div>
+
+              {/* Corpo */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-sm font-medium text-gray-700">Corpo email</label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => handleCopyField(sollecitoData.body, 'Corpo email')}
+                  >
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copia
+                  </Button>
+                </div>
+                <div className="px-3 py-2 bg-gray-50 rounded-md text-sm border whitespace-pre-wrap max-h-64 overflow-y-auto">
+                  {sollecitoData.body}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowSollecitoDialog(false)}>
+              Chiudi
+            </Button>
+            <Button onClick={handleSendSollecito}>
+              <Send className="h-4 w-4 mr-2" />
+              Invia email
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
