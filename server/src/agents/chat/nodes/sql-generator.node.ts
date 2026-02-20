@@ -122,6 +122,8 @@ export async function sqlGeneratorNode(
       new HumanMessage(userPrompt),
     ];
 
+    console.log(`[SQL-GEN] User input: "${state.userInput}", provider: ${llmSettings.provider}`);
+
     const response =
       llmSettings.provider === "openai"
         ? await llm.invoke(messages, {
@@ -130,6 +132,7 @@ export async function sqlGeneratorNode(
         : await llm.invoke(messages);
 
     const content = response.content as string;
+    console.log(`[SQL-GEN] LLM response: ${content.substring(0, 500)}`);
 
     // Estrai JSON dalla risposta (gestisce markdown code blocks)
     const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -142,12 +145,16 @@ export async function sqlGeneratorNode(
     // Prepend userId ai params (sempre $1)
     sqlQuery.params = [state.userId, ...(sqlQuery.params || [])];
 
+    console.log(`[SQL-GEN] Generated SQL: ${sqlQuery.sql}`);
+    console.log(`[SQL-GEN] Params: ${JSON.stringify(sqlQuery.params)}`);
+
     return {
       sqlQuery,
       needsHumanApproval: sqlQuery.isSensitive,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[SQL-GEN] Error: ${errorMessage}`);
     return {
       errors: [`Generazione SQL fallita: ${errorMessage}`],
     };

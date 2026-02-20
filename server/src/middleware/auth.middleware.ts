@@ -2,20 +2,20 @@ import type { FastifyRequest, FastifyReply } from "fastify";
 import { verifyAccessToken } from "../lib/jwt.js";
 import { prisma } from "../lib/prisma.js";
 
+const ACCESS_TOKEN_COOKIE = "accessToken";
+
 export async function authMiddleware(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
-  const authHeader = request.headers.authorization;
+  const token = request.cookies[ACCESS_TOKEN_COOKIE];
 
-  if (!authHeader?.startsWith("Bearer ")) {
+  if (!token) {
     return reply.status(401).send({
       error: "Unauthorized",
       message: "Token mancante",
     });
   }
-
-  const token = authHeader.split(" ")[1];
 
   try {
     const payload = verifyAccessToken(token);
@@ -56,17 +56,14 @@ export async function adminMiddleware(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
-  // First run auth middleware logic
-  const authHeader = request.headers.authorization;
+  const token = request.cookies[ACCESS_TOKEN_COOKIE];
 
-  if (!authHeader?.startsWith("Bearer ")) {
+  if (!token) {
     return reply.status(401).send({
       error: "Unauthorized",
       message: "Token mancante",
     });
   }
-
-  const token = authHeader.split(" ")[1];
 
   try {
     const payload = verifyAccessToken(token);
@@ -108,13 +105,11 @@ export async function optionalAuthMiddleware(
   request: FastifyRequest,
   _reply: FastifyReply
 ): Promise<void> {
-  const authHeader = request.headers.authorization;
+  const token = request.cookies[ACCESS_TOKEN_COOKIE];
 
-  if (!authHeader?.startsWith("Bearer ")) {
+  if (!token) {
     return;
   }
-
-  const token = authHeader.split(" ")[1];
 
   try {
     const payload = verifyAccessToken(token);

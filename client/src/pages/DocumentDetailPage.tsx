@@ -10,7 +10,6 @@ import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/formatters';
 import { exportSingleDocument, type ExportFormat } from '@/lib/export';
 import { ExportDropdown } from '@/components/documents/ExportDropdown';
-import { useAuthStore } from '@/stores/auth.store';
 
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -74,7 +73,6 @@ interface Invoice {
 export function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { accessToken } = useAuthStore();
 
   const [document, setDocument] = useState<DocType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -422,10 +420,6 @@ export function DocumentDetailPage() {
                   <div className="flex items-center justify-center h-full text-red-600 p-4 text-center">
                     {pdfError}
                   </div>
-                ) : !accessToken ? (
-                  <div className="flex items-center justify-center h-full text-red-600 p-4 text-center">
-                    Sessione non valida. Effettua nuovamente il login.
-                  </div>
                 ) : (
                   <Document
                     file={pdfUrl}
@@ -438,9 +432,7 @@ export function DocumentDetailPage() {
                       </div>
                     }
                     options={{
-                      httpHeaders: {
-                        Authorization: `Bearer ${accessToken}`,
-                      },
+                      withCredentials: true,
                     }}
                   >
                     {pdfLoaded && <Page pageNumber={currentPage} scale={scale} />}

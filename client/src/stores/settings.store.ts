@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import type { LLMProviderType, UserSettings } from '../api/settings';
 
 interface SettingsState {
@@ -29,37 +28,27 @@ const DEFAULT_SETTINGS: Omit<SettingsState, 'isLoading' | 'setSettings' | 'setLo
 };
 
 export const useSettingsStore = create<SettingsState>()(
-  persist(
-    (set) => ({
-      ...DEFAULT_SETTINGS,
-      isLoading: true,
-      setSettings: (settings) =>
-        set((state) => ({
-          ...state,
-          hasOpenaiApiKey: settings.hasOpenaiApiKey ?? state.hasOpenaiApiKey,
-          openaiApiKeyLastChars: settings.openaiApiKeyLastChars ?? state.openaiApiKeyLastChars,
-          llmProvider: settings.llmProvider ?? state.llmProvider,
-          ollamaBaseUrl: settings.ollamaBaseUrl ?? state.ollamaBaseUrl,
-          ollamaTextModel: settings.ollamaTextModel ?? state.ollamaTextModel,
-          ollamaVisionModel: settings.ollamaVisionModel ?? state.ollamaVisionModel,
-          openaiTextModel: settings.openaiTextModel ?? state.openaiTextModel,
-          openaiVisionModel: settings.openaiVisionModel ?? state.openaiVisionModel,
-          isLoading: false,
-        })),
-      setLoading: (isLoading) => set({ isLoading }),
-      clearSettings: () =>
-        set({
-          ...DEFAULT_SETTINGS,
-          isLoading: false,
-        }),
-    }),
-    {
-      name: 'settings-storage',
-      partialize: (state) => ({
-        hasOpenaiApiKey: state.hasOpenaiApiKey,
-        openaiApiKeyLastChars: state.openaiApiKeyLastChars,
-        llmProvider: state.llmProvider,
+  (set) => ({
+    ...DEFAULT_SETTINGS,
+    isLoading: true,
+    setSettings: (settings) =>
+      set((state) => ({
+        ...state,
+        hasOpenaiApiKey: settings.hasOpenaiApiKey ?? state.hasOpenaiApiKey,
+        openaiApiKeyLastChars: settings.openaiApiKeyLastChars ?? state.openaiApiKeyLastChars,
+        llmProvider: settings.llmProvider ?? state.llmProvider,
+        ollamaBaseUrl: settings.ollamaBaseUrl ?? state.ollamaBaseUrl,
+        ollamaTextModel: settings.ollamaTextModel ?? state.ollamaTextModel,
+        ollamaVisionModel: settings.ollamaVisionModel ?? state.ollamaVisionModel,
+        openaiTextModel: settings.openaiTextModel ?? state.openaiTextModel,
+        openaiVisionModel: settings.openaiVisionModel ?? state.openaiVisionModel,
+        isLoading: false,
+      })),
+    setLoading: (isLoading) => set({ isLoading }),
+    clearSettings: () =>
+      set({
+        ...DEFAULT_SETTINGS,
+        isLoading: false,
       }),
-    }
-  )
+  })
 );

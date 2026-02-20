@@ -2,12 +2,7 @@ import { apiRequest } from './client';
 import type { User } from '../stores/auth.store';
 
 interface AuthResponse {
-  user: User;
-  accessToken: string;
-}
-
-interface RefreshResponse {
-  accessToken: string;
+  auth_token: string;
 }
 
 interface MeResponse {
@@ -44,30 +39,8 @@ export async function logout(): Promise<void> {
   });
 }
 
-const API_BASE = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api/v1`
-  : '/api/v1';
-
-export async function refreshToken(): Promise<RefreshResponse> {
-  // Direct fetch to avoid circular dependency with apiRequest
-  // This endpoint uses httpOnly cookie, not Authorization header
-  const response = await fetch(`${API_BASE}/auth/refresh`, {
-    method: 'POST',
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    throw new Error('Token refresh failed');
-  }
-
-  return response.json();
-}
-
-export async function getMe(accessToken: string): Promise<MeResponse> {
+export async function getMe(): Promise<MeResponse> {
   return apiRequest<MeResponse>('/auth/me', {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
     credentials: 'include',
   });
 }

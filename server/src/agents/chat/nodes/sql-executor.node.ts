@@ -74,6 +74,9 @@ export async function sqlExecutorNode(
   try {
     const startTime = Date.now();
 
+    console.log(`[SQL-EXEC] Executing: ${sql}`);
+    console.log(`[SQL-EXEC] Params: ${JSON.stringify(params)}`);
+
     // Esegue query raw con Prisma
     const result = await prisma.$queryRawUnsafe(sql, ...(params || []));
 
@@ -81,6 +84,11 @@ export async function sqlExecutorNode(
     const data = Array.isArray(result)
       ? (result as Record<string, unknown>[])
       : [result as Record<string, unknown>];
+
+    console.log(`[SQL-EXEC] Results: ${data.length} rows in ${executionTime}ms`);
+    if (data.length > 0) {
+      console.log(`[SQL-EXEC] First row: ${JSON.stringify(data[0])}`);
+    }
 
     return {
       queryResult: {
@@ -91,6 +99,7 @@ export async function sqlExecutorNode(
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[SQL-EXEC] Error: ${errorMessage}`);
     return {
       errors: [`Esecuzione query fallita: ${errorMessage}`],
     };

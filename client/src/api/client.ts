@@ -17,72 +17,48 @@ export class ApiError extends Error {
 }
 
 let isRefreshing = false;
-let refreshPromise: Promise<string | null> | null = null;
+let refreshPromise: Promise<boolean> | null = null;
 
-async function refreshAccessToken(): Promise<string | null> {
+async function refreshAccessToken(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
     });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = await response.json();
-    return data.accessToken;
+    return response.ok;
   } catch {
-    return null;
+    return false;
   }
 }
 
-async function getValidAccessToken(): Promise<string | null> {
-  const { accessToken } = useAuthStore.getState();
-
-  if (!accessToken) {
-    return null;
-  }
-
-  return accessToken;
-}
-
-async function handleUnauthorized(): Promise<string | null> {
+async function handleUnauthorized(): Promise<boolean> {
   if (isRefreshing) {
-    return refreshPromise;
+    return refreshPromise!;
   }
 
   isRefreshing = true;
   refreshPromise = refreshAccessToken();
 
-  const newToken = await refreshPromise;
+  const success = await refreshPromise;
 
   isRefreshing = false;
   refreshPromise = null;
 
-  if (newToken) {
-    useAuthStore.getState().setAccessToken(newToken);
-    return newToken;
-  } else {
+  if (!success) {
     useAuthStore.getState().logout();
-    return null;
   }
+
+  return success;
 }
 
 export async function apiRequest<T>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
-  const accessToken = await getValidAccessToken();
-
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...options?.headers,
   };
-
-  if (accessToken) {
-    (headers as Record<string, string>)['Authorization'] = `Bearer ${accessToken}`;
-  }
 
   let response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
@@ -90,12 +66,11 @@ export async function apiRequest<T>(
     credentials: 'include',
   });
 
-  // Handle 401 - try to refresh token
-  if (response.status === 401 && accessToken) {
-    const newToken = await handleUnauthorized();
+  // Handle 401 - try to refresh token cookie
+  if (response.status === 401) {
+    const refreshed = await handleUnauthorized();
 
-    if (newToken) {
-      (headers as Record<string, string>)['Authorization'] = `Bearer ${newToken}`;
+    if (refreshed) {
       response = await fetch(`${API_BASE}${endpoint}`, {
         ...options,
         headers,
@@ -121,15 +96,9 @@ export async function apiRequestFormData<T>(
   formData: FormData,
   options?: Omit<RequestInit, 'body'>
 ): Promise<T> {
-  const accessToken = await getValidAccessToken();
-
   const headers: HeadersInit = {
     ...options?.headers,
   };
-
-  if (accessToken) {
-    (headers as Record<string, string>)['Authorization'] = `Bearer ${accessToken}`;
-  }
 
   let response = await fetch(`${API_BASE}${endpoint}`, {
     method: 'POST',
@@ -139,12 +108,11 @@ export async function apiRequestFormData<T>(
     credentials: 'include',
   });
 
-  // Handle 401 - try to refresh token
-  if (response.status === 401 && accessToken) {
-    const newToken = await handleUnauthorized();
+  // Handle 401 - try to refresh token cookie
+  if (response.status === 401) {
+    const refreshed = await handleUnauthorized();
 
-    if (newToken) {
-      (headers as Record<string, string>)['Authorization'] = `Bearer ${newToken}`;
+    if (refreshed) {
       response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         body: formData,

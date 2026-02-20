@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { useAuthStore } from '../../stores/auth.store';
-import { login } from '../../api/auth';
+import { login, getMe } from '../../api/auth';
 import { ApiError } from '../../api/client';
 
 export function LoginForm() {
@@ -20,8 +20,9 @@ export function LoginForm() {
     setIsLoading(true);
 
     try {
-      const response = await login(email, password);
-      setAuth(response.user, response.accessToken);
+      await login(email, password);
+      const { user } = await getMe();
+      setAuth(user);
       navigate('/documents');
     } catch (err) {
       if (err instanceof ApiError) {

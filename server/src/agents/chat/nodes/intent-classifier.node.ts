@@ -56,6 +56,8 @@ export async function intentClassifierNode(
       ? (intentRaw as ChatIntent)
       : "unclear";
 
+    console.log(`[INTENT] Input: "${state.userInput}" -> Intent: "${intent}" (raw: "${intentRaw}")`);
+
     return {
       intent,
       messages: [new HumanMessage(state.userInput)],

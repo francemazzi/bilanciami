@@ -12,12 +12,22 @@ import {
 import { authMiddleware } from "../middleware/auth.middleware.js";
 
 const REFRESH_TOKEN_COOKIE = "refreshToken";
-const COOKIE_OPTIONS = {
+const ACCESS_TOKEN_COOKIE = "accessToken";
+
+const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
   sameSite: "lax" as const,
   path: "/",
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+};
+
+const ACCESS_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax" as const,
+  path: "/",
+  maxAge: 15 * 60 * 1000, // 15 minutes
 };
 
 // Rate limit config for sensitive auth endpoints (5 requests per minute)
@@ -50,16 +60,7 @@ export async function authRoutes(app: FastifyInstance) {
           201: {
             type: "object",
             properties: {
-              user: {
-                type: "object",
-                properties: {
-                  id: { type: "string" },
-                  email: { type: "string" },
-                  name: { type: "string" },
-                  createdAt: { type: "string" },
-                },
-              },
-              accessToken: { type: "string" },
+              auth_token: { type: "string" },
             },
           },
           400: {
@@ -87,16 +88,20 @@ export async function authRoutes(app: FastifyInstance) {
           request.ip,
         );
 
-        // Set refresh token as httpOnly cookie
+        // Set tokens as httpOnly cookies
         reply.setCookie(
           REFRESH_TOKEN_COOKIE,
           result.tokens.refreshToken,
-          COOKIE_OPTIONS,
+          REFRESH_COOKIE_OPTIONS,
+        );
+        reply.setCookie(
+          ACCESS_TOKEN_COOKIE,
+          result.tokens.accessToken,
+          ACCESS_COOKIE_OPTIONS,
         );
 
         return reply.status(201).send({
-          user: result.user,
-          accessToken: result.tokens.accessToken,
+          auth_token: result.tokens.accessToken,
         });
       } catch (error) {
         const message =
@@ -131,16 +136,7 @@ export async function authRoutes(app: FastifyInstance) {
           200: {
             type: "object",
             properties: {
-              user: {
-                type: "object",
-                properties: {
-                  id: { type: "string" },
-                  email: { type: "string" },
-                  name: { type: "string" },
-                  createdAt: { type: "string" },
-                },
-              },
-              accessToken: { type: "string" },
+              auth_token: { type: "string" },
             },
           },
           401: {
@@ -168,16 +164,20 @@ export async function authRoutes(app: FastifyInstance) {
           request.ip,
         );
 
-        // Set refresh token as httpOnly cookie
+        // Set tokens as httpOnly cookies
         reply.setCookie(
           REFRESH_TOKEN_COOKIE,
           result.tokens.refreshToken,
-          COOKIE_OPTIONS,
+          REFRESH_COOKIE_OPTIONS,
+        );
+        reply.setCookie(
+          ACCESS_TOKEN_COOKIE,
+          result.tokens.accessToken,
+          ACCESS_COOKIE_OPTIONS,
         );
 
         return reply.send({
-          user: result.user,
-          accessToken: result.tokens.accessToken,
+          auth_token: result.tokens.accessToken,
         });
       } catch (error) {
         const message =
@@ -201,7 +201,7 @@ export async function authRoutes(app: FastifyInstance) {
           200: {
             type: "object",
             properties: {
-              accessToken: { type: "string" },
+              auth_token: { type: "string" },
             },
           },
           401: {
@@ -227,7 +227,14 @@ export async function authRoutes(app: FastifyInstance) {
 
         const result = await refreshAccessToken(refreshToken);
 
-        return reply.send(result);
+        // Set new access token as httpOnly cookie
+        reply.setCookie(
+          ACCESS_TOKEN_COOKIE,
+          result.accessToken,
+          ACCESS_COOKIE_OPTIONS,
+        );
+
+        return reply.send({ auth_token: result.accessToken });
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Errore durante il refresh";
@@ -263,8 +270,9 @@ export async function authRoutes(app: FastifyInstance) {
         await logoutUser(refreshToken);
       }
 
-      // Clear cookie
+      // Clear cookies
       reply.clearCookie(REFRESH_TOKEN_COOKIE, { path: "/" });
+      reply.clearCookie(ACCESS_TOKEN_COOKIE, { path: "/" });
 
       return reply.send({ success: true });
     },

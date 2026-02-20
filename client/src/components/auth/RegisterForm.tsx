@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { useAuthStore } from '../../stores/auth.store';
-import { register } from '../../api/auth';
+import { register, getMe } from '../../api/auth';
 import { ApiError } from '../../api/client';
 
 export function RegisterForm() {
@@ -33,8 +33,9 @@ export function RegisterForm() {
     setIsLoading(true);
 
     try {
-      const response = await register(email, password, name);
-      setAuth(response.user, response.accessToken);
+      await register(email, password, name);
+      const { user } = await getMe();
+      setAuth(user);
       navigate('/documents');
     } catch (err) {
       if (err instanceof ApiError) {

@@ -60,6 +60,8 @@ export async function responseGeneratorNode(
     const userName = state.userName || "utente";
     let contextInfo = `Stai rispondendo all'utente: ${userName}. Mostra SOLO i dati di questo utente.\n\n`;
 
+    console.log(`[RESPONSE] Intent: ${state.intent}, hasQueryResult: ${!!state.queryResult}, errors: ${JSON.stringify(state.errors)}, hasSqlQuery: ${!!state.sqlQuery}`);
+
     if (state.humanApprovalStatus === "rejected") {
       contextInfo += "L'utente ha annullato l'operazione richiesta.";
     } else if (state.queryResult) {

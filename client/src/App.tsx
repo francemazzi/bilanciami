@@ -15,10 +15,10 @@ import { AdminPage } from '@/pages/AdminPage';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { AdminRoute } from '@/components/auth/AdminRoute';
 import { useAuthStore } from '@/stores/auth.store';
-import { refreshToken } from '@/api/auth';
+import { getMe } from '@/api/auth';
 
 function AuthInitializer({ children }: { children: React.ReactNode }) {
-  const { setLoading, setAccessToken, accessToken, isAuthenticated, logout } = useAuthStore();
+  const { setLoading, setAuth } = useAuthStore();
   const initRef = useRef(false);
 
   useEffect(() => {
@@ -27,22 +27,18 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
       if (initRef.current) return;
       initRef.current = true;
 
-      // If user is authenticated but has no access token (page reload),
-      // try to refresh using the httpOnly cookie
-      if (isAuthenticated && !accessToken) {
-        try {
-          const response = await refreshToken();
-          setAccessToken(response.accessToken);
-        } catch {
-          // Refresh failed - session expired, logout
-          logout();
-        }
+      // Try to restore session from httpOnly cookie
+      try {
+        const { user } = await getMe();
+        setAuth(user);
+      } catch {
+        // Not authenticated or session expired
+        setLoading(false);
       }
-      setLoading(false);
     }
 
     initAuth();
-  }, [isAuthenticated, accessToken, setLoading, setAccessToken, logout]);
+  }, [setLoading, setAuth]);
 
   return <>{children}</>;
 }
