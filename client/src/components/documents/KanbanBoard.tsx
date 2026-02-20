@@ -271,8 +271,9 @@ export function KanbanBoard({ documents, onDocumentsChange }: KanbanBoardProps) 
     }
   }, [documents, onDocumentsChange]);
 
-  const overdueCount = columns.find(c => c.id === 'overdue')?.documents.length ?? 0;
-  const dueSoonCount = columns.find(c => c.id === 'due_soon')?.documents.length ?? 0;
+  const isActiveDoc = (doc: Document) => !doc.done && doc.followUpStatus !== 'gestita';
+  const overdueCount = columns.find(c => c.id === 'overdue')?.documents.filter(isActiveDoc).length ?? 0;
+  const dueSoonCount = columns.find(c => c.id === 'due_soon')?.documents.filter(isActiveDoc).length ?? 0;
 
   return (
     <div className="space-y-4">

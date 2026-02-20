@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { FileText, Upload, FolderTree, TableIcon, Columns3, Loader2 } from 'lucide-react';
@@ -11,9 +11,17 @@ import { toast } from 'sonner';
 
 type ViewMode = 'explorer' | 'table' | 'kanban';
 
+const VALID_VIEWS: ViewMode[] = ['explorer', 'table', 'kanban'];
+
 export function DocumentsPage() {
   const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState<ViewMode>('explorer');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const viewParam = searchParams.get('view');
+  const viewMode: ViewMode = VALID_VIEWS.includes(viewParam as ViewMode) ? (viewParam as ViewMode) : 'explorer';
+
+  const setViewMode = useCallback((mode: ViewMode) => {
+    setSearchParams({ view: mode }, { replace: true });
+  }, [setSearchParams]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
