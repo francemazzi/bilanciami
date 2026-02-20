@@ -196,7 +196,7 @@ export function DocumentDetailPage() {
   const handleSendSollecito = useCallback(() => {
     if (!sollecitoData) return;
     const mailtoUrl = `mailto:${encodeURIComponent(sollecitoData.emailTo)}?subject=${encodeURIComponent(sollecitoData.subject)}&body=${encodeURIComponent(sollecitoData.body)}`;
-    window.location.href = mailtoUrl;
+    window.open(mailtoUrl, '_blank');
   }, [sollecitoData]);
 
   const [userNotes, setUserNotes] = useState('');
