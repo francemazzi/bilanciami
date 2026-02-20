@@ -1,11 +1,15 @@
-import { apiRequestFormData } from './client';
-import type { ExtractionResponse } from './types';
+import { apiRequest, apiRequestFormData } from './client';
+import type { JobCreatedResponse, JobStatusResponse } from './types';
 
-export async function uploadPdfs(files: File[]): Promise<ExtractionResponse> {
+export async function uploadPdfs(files: File[]): Promise<JobCreatedResponse> {
   const formData = new FormData();
   files.forEach((file) => formData.append('files', file));
 
-  return apiRequestFormData<ExtractionResponse>('/invoices/extract', formData);
+  return apiRequestFormData<JobCreatedResponse>('/invoices/extract', formData);
+}
+
+export async function getJobStatus(jobId: string): Promise<JobStatusResponse> {
+  return apiRequest<JobStatusResponse>(`/invoices/jobs/${jobId}`);
 }
 
 export async function getInvoiceSchema(): Promise<Record<string, unknown>> {

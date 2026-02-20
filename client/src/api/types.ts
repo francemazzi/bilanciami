@@ -144,6 +144,25 @@ export interface ExtractionResponse {
   failed: number;
 }
 
+// Async job types
+export interface JobCreatedResponse {
+  jobId: string;
+  fileCount: number;
+}
+
+export interface JobProgress {
+  current: number;
+  total: number;
+  currentFile?: string;
+}
+
+export interface JobStatusResponse {
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  progress?: JobProgress;
+  result?: ExtractionResponse;
+  error?: string;
+}
+
 // Document types (from Prisma model)
 export interface Document {
   id: string;

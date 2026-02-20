@@ -18,6 +18,7 @@ import { chatRoutes } from "./routes/chat.routes.js";
 import { adminRoutes } from "./routes/admin.routes.js";
 import * as path from "path";
 import * as fs from "fs";
+import { startExtractionWorker, stopExtractionWorker } from "./queues/extraction.queue.js";
 
 // Load OpenAI API key from root .env if not already set
 if (!process.env.OPENAI_API_KEY) {
@@ -230,6 +231,10 @@ async function main() {
     },
   }));
 
+  // Start extraction worker
+  startExtractionWorker();
+  console.log("📋 Extraction worker started");
+
   // Start server
   const port = parseInt(process.env.PORT || "3000", 10);
   const host = process.env.HOST || "0.0.0.0";
@@ -239,13 +244,25 @@ async function main() {
     console.log(`\n🚀 Server running at http://localhost:${port}`);
     console.log(`📚 Swagger docs at http://localhost:${port}/docs`);
     console.log(`\nEndpoints:`);
-    console.log(`  POST /api/v1/invoices/extract - Upload PDFs for extraction`);
-    console.log(`  GET  /api/v1/invoices/schema  - Get invoice JSON schema`);
-    console.log(`  GET  /health                  - Health check\n`);
+    console.log(`  POST /api/v1/invoices/extract - Upload PDFs for async extraction`);
+    console.log(`  GET  /api/v1/invoices/jobs/:id - Poll extraction job status`);
+    console.log(`  GET  /api/v1/invoices/schema   - Get invoice JSON schema`);
+    console.log(`  GET  /health                   - Health check\n`);
   } catch (err) {
     app.log.error(err);
     process.exit(1);
   }
 }
+
+// Graceful shutdown
+async function shutdown() {
+  console.log("\n🛑 Shutting down...");
+  await stopExtractionWorker();
+  await app.close();
+  process.exit(0);
+}
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
 
 main();

@@ -8,7 +8,6 @@ import { useSettingsStore } from '@/stores/settings.store';
 import { useLicenseStore } from '@/stores/license.store';
 import { AlertCircle, Settings, FileWarning, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { ExtractionResponse } from '@/api/types';
 
 export function UploadPage() {
   const navigate = useNavigate();
@@ -68,23 +67,19 @@ export function UploadPage() {
 
     setIsUploading(true);
     try {
-      const data: ExtractionResponse = await uploadPdfs(files);
+      const { jobId, fileCount } = await uploadPdfs(files);
 
-      if (data.successful > 0) {
-        // Update local count on success
-        decrementRemaining(data.successful);
-        toast.success(
-          `${data.successful} fattur${data.successful === 1 ? 'a estratta' : 'e estratte'} con successo`
-        );
-      }
-      if (data.failed > 0) {
-        toast.error(
-          `${data.failed} fattur${data.failed === 1 ? 'a' : 'e'} non ${data.failed === 1 ? 'estratta' : 'estratte'}`
-        );
-      }
+      // Optimistically update remaining PDFs count
+      decrementRemaining(fileCount);
 
-      // Navigate to results with the extraction data
-      navigate('/results', { state: { results: data } });
+      // Navigate to results page with jobId for polling
+      navigate('/results', {
+        state: {
+          jobId,
+          fileNames: files.map((f) => f.name),
+          fileCount,
+        },
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Errore durante l\'upload';
       toast.error(message);

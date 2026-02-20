@@ -1,66 +1,37 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { extractInvoice } from "../agents/invoice-graph.js";
-import type { Invoice } from "../types/invoice.js";
 import { authMiddleware } from "../middleware/auth.middleware.js";
-import { prisma } from "../lib/prisma.js";
-import { savePdf } from "../services/storage.service.js";
-import { generateDocumentPath } from "../lib/document-path.js";
-import { Prisma } from "../../generated/prisma/client";
 import { getFullLLMSettings } from "../services/settings.service.js";
 import { testOllamaConnection } from "../services/llm.service.js";
 import { canUploadPdfs } from "../services/license.service.js";
-
-interface ExtractionResult {
-  file_name: string;
-  success: boolean;
-  invoice?: Invoice;
-  errors?: string[];
-  confidence?: number;
-  document_id?: string;
-}
+import {
+  enqueueExtraction,
+  getExtractionQueue,
+} from "../queues/extraction.queue.js";
 
 export async function invoiceRoutes(app: FastifyInstance) {
   /**
    * POST /invoices/extract
-   * Upload one or more PDF files to extract structured invoice data
+   * Upload one or more PDF files and queue them for async extraction.
+   * Returns immediately with a jobId for polling.
    */
   app.post(
     "/invoices/extract",
     {
       preHandler: authMiddleware,
       schema: {
-        summary: "Extract invoice data from PDF files",
+        summary: "Upload PDFs for async invoice extraction",
         description:
-          "Upload one or more PDF files to extract structured invoice data using AI-powered text and vision extraction. Requires authentication and OpenAI API key configured in settings.",
+          "Upload one or more PDF files to extract structured invoice data. Returns a jobId immediately. Use GET /invoices/jobs/:jobId to poll for results.",
         consumes: ["multipart/form-data"],
         tags: ["invoices"],
         security: [{ bearerAuth: [] }],
         response: {
-          200: {
-            description: "Successful extraction",
+          202: {
+            description: "Job created",
             type: "object",
             properties: {
-              results: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    file_name: { type: "string" },
-                    success: { type: "boolean" },
-                    invoice: { type: "object", additionalProperties: true },
-                    errors: {
-                      type: "array",
-                      items: { type: "string" },
-                    },
-                    confidence: { type: "number" },
-                    document_id: { type: "string" },
-                  },
-                },
-              },
-              total_processed: { type: "number" },
-              successful: { type: "number" },
-              failed: { type: "number" },
-              error: { type: "string" },
+              jobId: { type: "string" },
+              fileCount: { type: "number" },
             },
           },
         },
@@ -75,10 +46,6 @@ export async function invoiceRoutes(app: FastifyInstance) {
       // Validate configuration based on provider
       if (llmSettings.provider === "openai" && !llmSettings.openaiApiKey) {
         return reply.status(400).send({
-          results: [],
-          total_processed: 0,
-          successful: 0,
-          failed: 0,
           error:
             "Chiave API OpenAI non configurata. Vai alle impostazioni per aggiungerla.",
         });
@@ -86,13 +53,11 @@ export async function invoiceRoutes(app: FastifyInstance) {
 
       // For Ollama, check connectivity
       if (llmSettings.provider === "ollama") {
-        const ollamaTest = await testOllamaConnection(llmSettings.ollamaBaseUrl);
+        const ollamaTest = await testOllamaConnection(
+          llmSettings.ollamaBaseUrl
+        );
         if (!ollamaTest.success) {
           return reply.status(400).send({
-            results: [],
-            total_processed: 0,
-            successful: 0,
-            failed: 0,
             error: `Impossibile connettersi a Ollama: ${ollamaTest.error}`,
           });
         }
@@ -116,143 +81,121 @@ export async function invoiceRoutes(app: FastifyInstance) {
         }
       }
 
+      if (pdfFiles.length === 0) {
+        return reply.status(400).send({
+          error: "Nessun file PDF valido trovato nella richiesta.",
+        });
+      }
+
       // Check license limit before processing
       const limitCheck = await canUploadPdfs(userId, pdfFiles.length);
       if (!limitCheck.allowed) {
         return reply.status(403).send({
-          results: [],
-          total_processed: 0,
-          successful: 0,
-          failed: 0,
           error: limitCheck.reason,
           remainingPdfs: limitCheck.remainingPdfs,
           licenseTier: limitCheck.licenseTier,
         });
       }
 
-      const results: ExtractionResult[] = [];
+      // Enqueue extraction job (saves PDFs to temp dir, returns immediately)
+      const jobId = await enqueueExtraction(userId, pdfFiles, llmSettings);
 
-      // Process buffered PDF files
-      for (const { buffer, fileName } of pdfFiles) {
-        try {
-          app.log.info(`Processing file: ${fileName} with provider: ${llmSettings.provider}`);
+      app.log.info(
+        `Extraction job ${jobId} created for ${pdfFiles.length} file(s)`
+      );
 
-          const extractionResult = await extractInvoice(buffer, fileName, llmSettings);
+      return reply.status(202).send({
+        jobId,
+        fileCount: pdfFiles.length,
+      });
+    }
+  );
 
-          const result: ExtractionResult = {
-            file_name: fileName,
-            success: !!extractionResult.invoice,
-            invoice: extractionResult.invoice || undefined,
-            errors:
-              extractionResult.errors.length > 0
-                ? extractionResult.errors
-                : undefined,
-            confidence: extractionResult.confidence,
-          };
-
-          // Save document to database if user is authenticated and extraction was successful
-          if (userId && extractionResult.invoice) {
-            try {
-              const invoice = extractionResult.invoice;
-              const supplierName = invoice.supplier?.name || "Unknown Supplier";
-              const customerName = invoice.customer?.name || "Unknown Customer";
-              const extractionDate = new Date();
-              const filePath = generateDocumentPath(extractionDate, customerName, supplierName);
-
-              // Parse dates from invoice
-              let documentDate: Date | null = null;
-              let dueDate: Date | null = null;
-
-              if (invoice.document_date) {
-                const parsed = new Date(invoice.document_date);
-                if (!isNaN(parsed.getTime())) {
-                  documentDate = parsed;
-                }
-              }
-
-              if (invoice.payment_details?.due_date) {
-                const parsed = new Date(invoice.payment_details.due_date);
-                if (!isNaN(parsed.getTime())) {
-                  dueDate = parsed;
-                }
-              }
-
-              // Create document in database
-              const document = await prisma.document.create({
-                data: {
-                  extractionDate,
-                  customerName,
-                  supplierName,
-                  filePath,
-                  fileName,
-                  mimeType: "application/pdf",
-                  fileSize: buffer.length,
-                  metadata: invoice as unknown as Prisma.InputJsonValue,
-                  invoiceId: invoice.invoice_id || null,
-                  documentDate,
-                  dueDate,
-                  totalAmount: invoice.totals?.total_amount ?? null,
+  /**
+   * GET /invoices/jobs/:jobId
+   * Poll the status of an extraction job.
+   */
+  app.get<{ Params: { jobId: string } }>(
+    "/invoices/jobs/:jobId",
+    {
+      preHandler: authMiddleware,
+      schema: {
+        summary: "Poll extraction job status",
+        description:
+          "Returns the current status, progress, and results of an extraction job.",
+        tags: ["invoices"],
+        security: [{ bearerAuth: [] }],
+        params: {
+          type: "object",
+          properties: {
+            jobId: { type: "string" },
+          },
+          required: ["jobId"],
+        },
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              status: { type: "string" },
+              progress: {
+                type: "object",
+                properties: {
+                  current: { type: "number" },
+                  total: { type: "number" },
+                  currentFile: { type: "string" },
                 },
-              });
+              },
+              result: {
+                type: "object",
+                additionalProperties: true,
+              },
+              error: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const userId = request.user!.id;
+      const { jobId } = request.params;
 
-              // Save PDF to disk
-              const pdfStoragePath = await savePdf(buffer, userId, document.id, fileName);
+      const queue = getExtractionQueue();
+      const job = await queue.getJob(jobId);
 
-              // Update document with PDF storage path
-              await prisma.document.update({
-                where: { id: document.id },
-                data: { pdfStoragePath },
-              });
-
-              // Associate document with user
-              await prisma.userOnDocument.create({
-                data: {
-                  userId,
-                  documentId: document.id,
-                  role: "owner",
-                },
-              });
-
-              result.document_id = document.id;
-              app.log.info(`Document saved with ID: ${document.id}`);
-            } catch (saveError) {
-              const errorMessage =
-                saveError instanceof Error ? saveError.message : String(saveError);
-              app.log.error(`Failed to save document: ${errorMessage}`);
-              // Don't fail the extraction if save fails
-              if (!result.errors) {
-                result.errors = [];
-              }
-              result.errors.push(`Document save failed: ${errorMessage}`);
-            }
-          }
-
-          results.push(result);
-
-          app.log.info(
-            `Completed processing: ${fileName} (confidence: ${extractionResult.confidence})`
-          );
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          app.log.error(`Failed to process ${fileName}: ${errorMessage}`);
-
-          results.push({
-            file_name: fileName,
-            success: false,
-            errors: [`Processing failed: ${errorMessage}`],
-          });
-        }
+      if (!job) {
+        return reply.status(404).send({ error: "Job non trovato" });
       }
 
-      const successful = results.filter((r) => r.success).length;
-      const failed = results.filter((r) => !r.success).length;
+      // Verify the job belongs to the requesting user
+      if (job.data.userId !== userId) {
+        return reply.status(403).send({ error: "Accesso negato" });
+      }
 
+      const state = await job.getState();
+      const progress = job.progress as
+        | { current: number; total: number; currentFile?: string }
+        | undefined;
+
+      if (state === "completed") {
+        return {
+          status: "completed",
+          progress: progress || undefined,
+          result: job.returnvalue,
+        };
+      }
+
+      if (state === "failed") {
+        return {
+          status: "failed",
+          progress: progress || undefined,
+          error: job.failedReason || "Errore sconosciuto durante l'estrazione",
+        };
+      }
+
+      // pending, waiting, active, delayed
       return {
-        results,
-        total_processed: results.length,
-        successful,
-        failed,
+        status: state === "active" ? "processing" : "pending",
+        progress: progress || undefined,
       };
     }
   );
@@ -266,7 +209,8 @@ export async function invoiceRoutes(app: FastifyInstance) {
     {
       schema: {
         summary: "Get the invoice schema description",
-        description: "Returns information about the extracted invoice data structure",
+        description:
+          "Returns information about the extracted invoice data structure",
         response: {
           200: {
             type: "object",
@@ -279,12 +223,17 @@ export async function invoiceRoutes(app: FastifyInstance) {
         description: "Invoice extraction schema",
         fields: {
           invoice_id: "Invoice number/identifier",
-          document_type: "Document type (Fattura, TD24, Nota Pro-forma, etc.)",
+          document_type:
+            "Document type (Fattura, TD24, Nota Pro-forma, etc.)",
           document_date: "Invoice date in YYYY-MM-DD format",
-          supplier: "Supplier/vendor information (vat_number, name, address, etc.)",
-          customer: "Customer/buyer information (vat_number, name, address, etc.)",
-          line_items: "Array of invoice line items with description, quantity, price, etc.",
-          totals: "Invoice totals (total_taxable, total_vat, total_amount)",
+          supplier:
+            "Supplier/vendor information (vat_number, name, address, etc.)",
+          customer:
+            "Customer/buyer information (vat_number, name, address, etc.)",
+          line_items:
+            "Array of invoice line items with description, quantity, price, etc.",
+          totals:
+            "Invoice totals (total_taxable, total_vat, total_amount)",
           payment_details: "Payment method, bank info, due date",
           notes: "Additional notes from the invoice",
         },
