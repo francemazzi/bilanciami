@@ -196,7 +196,11 @@ export function DocumentDetailPage() {
   const handleSendSollecito = useCallback(() => {
     if (!sollecitoData) return;
     const mailtoUrl = `mailto:${encodeURIComponent(sollecitoData.emailTo)}?subject=${encodeURIComponent(sollecitoData.subject)}&body=${encodeURIComponent(sollecitoData.body)}`;
-    window.open(mailtoUrl, '_blank');
+    const link = window.document.createElement('a');
+    link.href = mailtoUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.click();
   }, [sollecitoData]);
 
   const [userNotes, setUserNotes] = useState('');
