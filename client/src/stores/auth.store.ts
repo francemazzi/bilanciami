@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { useSettingsStore } from './settings.store';
 import { useLicenseStore } from './license.store';
+import { useExtractionStore } from './extraction.store';
 
 export interface User {
   id: string;
@@ -35,6 +36,7 @@ export const useAuthStore = create<AuthState>()(
     logout: () => {
       useSettingsStore.getState().clearSettings();
       useLicenseStore.getState().clearLicense();
+      useExtractionStore.getState().clearJob();
       set({
         user: null,
         isAuthenticated: false,

@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { PdfDropzone } from '@/components/upload/PdfDropzone';
+import { ExtractionProgress } from '@/components/upload/ExtractionProgress';
 import { uploadPdfs } from '@/api/invoices';
 import { getSettings, getLicenseInfo } from '@/api/settings';
 import { toast } from 'sonner';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useLicenseStore } from '@/stores/license.store';
+import { useExtractionStore } from '@/stores/extraction.store';
 import { AlertCircle, Settings, FileWarning, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function UploadPage() {
-  const navigate = useNavigate();
   const [isUploading, setIsUploading] = useState(false);
   const [isCheckingKey, setIsCheckingKey] = useState(true);
   const { hasOpenaiApiKey, setSettings, setLoading } = useSettingsStore();
@@ -23,6 +24,10 @@ export function UploadPage() {
     setLicenseInfo,
     decrementRemaining,
   } = useLicenseStore();
+  const jobStatus = useExtractionStore((s) => s.status);
+  const startJob = useExtractionStore((s) => s.startJob);
+  const hasActiveJob = jobStatus !== 'idle';
+  const isJobRunning = jobStatus === 'pending' || jobStatus === 'processing';
 
   const isFreeUser = licenseTier === 'free';
 
@@ -72,14 +77,8 @@ export function UploadPage() {
       // Optimistically update remaining PDFs count
       decrementRemaining(fileCount);
 
-      // Navigate to results page with jobId for polling
-      navigate('/results', {
-        state: {
-          jobId,
-          fileNames: files.map((f) => f.name),
-          fileCount,
-        },
-      });
+      // Store job globally so progress survives navigation
+      startJob(jobId, files.map((f) => f.name), fileCount);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Errore durante l\'upload';
       toast.error(message);
@@ -173,13 +172,19 @@ export function UploadPage() {
         </div>
       )}
 
-      <PdfDropzone
-        onFilesSelected={handleUpload}
-        isUploading={isUploading}
-        disabled={!hasOpenaiApiKey || isLimitReached}
-        maxFiles={remainingPdfs === -1 ? 10 : Math.min(10, remainingPdfs)}
-        remainingPdfs={remainingPdfs}
-      />
+      {hasActiveJob && <ExtractionProgress />}
+
+      {!isJobRunning && (
+        <div className={hasActiveJob ? 'mt-6' : ''}>
+          <PdfDropzone
+            onFilesSelected={handleUpload}
+            isUploading={isUploading}
+            disabled={!hasOpenaiApiKey || isLimitReached}
+            maxFiles={remainingPdfs === -1 ? 10 : Math.min(10, remainingPdfs)}
+            remainingPdfs={remainingPdfs}
+          />
+        </div>
+      )}
 
       <div className="mt-8 p-4 bg-muted rounded-lg">
         <h3 className="font-semibold mb-2">Formati supportati</h3>

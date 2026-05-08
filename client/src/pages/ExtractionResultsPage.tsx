@@ -1,101 +1,31 @@
-import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { InvoiceCard } from '@/components/invoice/InvoiceCard';
-import { ArrowLeft, Upload, CheckCircle2, XCircle, Loader2, AlertCircle, FileText } from 'lucide-react';
-import { toast } from 'sonner';
-import { getJobStatus } from '@/api/invoices';
-import type { ExtractionResponse, JobStatusResponse } from '@/api/types';
+import { ArrowLeft, Upload, CheckCircle2, XCircle, AlertCircle, FileText, Loader2 } from 'lucide-react';
+import type { ExtractionResponse } from '@/api/types';
+import { useExtractionStore } from '@/stores/extraction.store';
 
-const POLL_INTERVAL = 3000;
-
-interface LocationState {
-  jobId?: string;
-  fileNames?: string[];
-  fileCount?: number;
-  // Legacy: direct results (for backwards compat)
+interface LegacyLocationState {
+  // Legacy: direct results passed via navigate state
   results?: ExtractionResponse;
 }
 
 export function ExtractionResultsPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const state = location.state as LocationState | undefined;
+  const legacyResults = (location.state as LegacyLocationState | undefined)?.results;
 
-  const [jobStatus, setJobStatus] = useState<JobStatusResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const toastShownRef = useRef(false);
+  const { jobId, fileNames, fileCount, status, progress, result, error } = useExtractionStore();
 
-  const jobId = state?.jobId;
-  const fileNames = state?.fileNames || [];
-  const fileCount = state?.fileCount || fileNames.length;
-
-  // Legacy support: if results were passed directly
-  const legacyResults = state?.results;
-
-  useEffect(() => {
-    if (!jobId && !legacyResults) return;
-    if (legacyResults) return; // No polling needed for legacy
-
-    let cancelled = false;
-
-    async function poll() {
-      if (cancelled) return;
-      try {
-        const status = await getJobStatus(jobId!);
-        if (cancelled) return;
-        setJobStatus(status);
-
-        if (status.status === 'completed') {
-          if (!toastShownRef.current && status.result) {
-            toastShownRef.current = true;
-            const { successful, failed } = status.result;
-            if (successful > 0) {
-              toast.success(
-                `${successful} fattur${successful === 1 ? 'a estratta' : 'e estratte'} con successo`
-              );
-            }
-            if (failed > 0) {
-              toast.error(
-                `${failed} fattur${failed === 1 ? 'a' : 'e'} non ${failed === 1 ? 'estratta' : 'estratte'}`
-              );
-            }
-          }
-          return; // Stop polling
-        }
-
-        if (status.status === 'failed') {
-          if (!toastShownRef.current) {
-            toastShownRef.current = true;
-            toast.error(status.error || 'Errore durante l\'estrazione');
-          }
-          return; // Stop polling
-        }
-
-        // Continue polling
-        pollingRef.current = setTimeout(poll, POLL_INTERVAL);
-      } catch (err) {
-        if (cancelled) return;
-        const message = err instanceof Error ? err.message : 'Errore di connessione';
-        setError(message);
-      }
-    }
-
-    poll();
-
-    return () => {
-      cancelled = true;
-      if (pollingRef.current) {
-        clearTimeout(pollingRef.current);
-      }
-    };
-  }, [jobId, legacyResults]);
+  const hasJob = !!jobId;
+  const isProcessing = hasJob && (status === 'pending' || status === 'processing');
+  const isFailed = hasJob && status === 'failed';
+  const results = legacyResults || (status === 'completed' ? result : undefined);
 
   // No state at all
-  if (!jobId && !legacyResults) {
+  if (!hasJob && !legacyResults) {
     return (
       <div className="container py-4 md:py-8 px-4 text-center">
         <h1 className="text-xl md:text-2xl font-bold mb-4">Nessun risultato</h1>
@@ -112,14 +42,8 @@ export function ExtractionResultsPage() {
     );
   }
 
-  // Get results from either source
-  const results = legacyResults || (jobStatus?.status === 'completed' ? jobStatus.result : undefined);
-  const isProcessing = !legacyResults && jobStatus?.status !== 'completed' && jobStatus?.status !== 'failed';
-  const isFailed = !legacyResults && jobStatus?.status === 'failed';
-  const progress = jobStatus?.progress;
-
   // Processing state
-  if (isProcessing && !error) {
+  if (isProcessing) {
     const currentFileIndex = progress?.current ?? 0;
     const totalFiles = progress?.total || fileCount;
     const progressPercent = totalFiles > 0 ? Math.round((currentFileIndex / totalFiles) * 100) : 0;
@@ -142,7 +66,6 @@ export function ExtractionResultsPage() {
             </span>
           </div>
 
-          {/* Progress bar */}
           <div className="w-full bg-muted rounded-full h-3">
             <div
               className="bg-blue-600 h-3 rounded-full transition-all duration-500"
@@ -150,7 +73,6 @@ export function ExtractionResultsPage() {
             />
           </div>
 
-          {/* Current file */}
           {currentFileName && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <FileText className="h-4 w-4" />
@@ -158,7 +80,6 @@ export function ExtractionResultsPage() {
             </div>
           )}
 
-          {/* File list */}
           {fileNames.length > 0 && (
             <div className="space-y-2 mt-4">
               {fileNames.map((name, index) => {
@@ -192,14 +113,14 @@ export function ExtractionResultsPage() {
   }
 
   // Error state
-  if (isFailed || error) {
+  if (isFailed) {
     return (
       <div className="container max-w-2xl py-4 md:py-8 px-4">
         <Card className="p-6 text-center space-y-4">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
           <h2 className="text-lg font-semibold">Estrazione fallita</h2>
           <p className="text-sm text-muted-foreground">
-            {jobStatus?.error || error || 'Si e verificato un errore durante l\'estrazione.'}
+            {error || 'Si e verificato un errore durante l\'estrazione.'}
           </p>
           <div className="flex justify-center gap-4">
             <Button variant="outline" asChild>
