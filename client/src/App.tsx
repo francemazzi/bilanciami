@@ -6,6 +6,7 @@ import { HomePage } from '@/pages/HomePage';
 import { UploadPage } from '@/pages/UploadPage';
 import { ExtractionResultsPage } from '@/pages/ExtractionResultsPage';
 import { DocumentsPage } from '@/pages/DocumentsPage';
+import { DdtPage } from '@/pages/DdtPage';
 import { DocumentDetailPage } from '@/pages/DocumentDetailPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
@@ -64,6 +65,7 @@ function App() {
             <Route path="/upload" element={<UploadPage />} />
             <Route path="/results" element={<ExtractionResultsPage />} />
             <Route path="/documents" element={<DocumentsPage />} />
+            <Route path="/ddt" element={<DdtPage />} />
             <Route path="/documents/:id" element={<DocumentDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/profile" element={<ProfilePage />} />

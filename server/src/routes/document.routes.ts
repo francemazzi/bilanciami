@@ -7,6 +7,7 @@ import { authMiddleware } from "../middleware/auth.middleware.js";
 import { getFullLLMSettings } from "../services/settings.service.js";
 import { createTextLLM } from "../services/llm.service.js";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
+import type { DocumentKind } from "../types/document.js";
 
 interface DocumentParams {
   id: string;
@@ -19,6 +20,8 @@ interface CreateDocumentBody {
   mimeType?: string;
   fileSize?: number;
   metadata?: Prisma.InputJsonValue;
+  documentKind?: DocumentKind;
+  documentNumber?: string;
   extractionDate?: string;
 }
 
@@ -29,11 +32,14 @@ interface UpdateDocumentBody {
   mimeType?: string;
   fileSize?: number;
   metadata?: Prisma.InputJsonValue;
+  documentKind?: DocumentKind;
+  documentNumber?: string | null;
 }
 
 interface DocumentQuerystring {
   customerName?: string;
   supplierName?: string;
+  documentKind?: DocumentKind;
   fromDate?: string;
   toDate?: string;
 }
@@ -54,6 +60,7 @@ export async function documentRoutes(app: FastifyInstance) {
           properties: {
             customerName: { type: "string" },
             supplierName: { type: "string" },
+            documentKind: { type: "string", enum: ["invoice", "ddt"] },
             fromDate: { type: "string", format: "date" },
             toDate: { type: "string", format: "date" },
           },
@@ -73,6 +80,8 @@ export async function documentRoutes(app: FastifyInstance) {
                 mimeType: { type: "string" },
                 fileSize: { type: "number" },
                 metadata: { type: "object", additionalProperties: true },
+                documentKind: { type: "string", nullable: true },
+                documentNumber: { type: "string", nullable: true },
                 invoiceId: { type: "string", nullable: true },
                 documentDate: { type: "string", nullable: true },
                 dueDate: { type: "string", nullable: true },
@@ -101,7 +110,8 @@ export async function documentRoutes(app: FastifyInstance) {
         return reply.status(401).send({ error: "Non autenticato" });
       }
 
-      const { customerName, supplierName, fromDate, toDate } = request.query as DocumentQuerystring;
+      const { customerName, supplierName, documentKind, fromDate, toDate } =
+        request.query as DocumentQuerystring;
 
       const where: Record<string, unknown> = {
         users: { some: { userId } },
@@ -112,6 +122,9 @@ export async function documentRoutes(app: FastifyInstance) {
       }
       if (supplierName) {
         where.supplierName = { contains: supplierName, mode: "insensitive" };
+      }
+      if (documentKind) {
+        where.documentKind = documentKind;
       }
       if (fromDate || toDate) {
         where.extractionDate = {
@@ -124,6 +137,113 @@ export async function documentRoutes(app: FastifyInstance) {
         where,
         orderBy: { extractionDate: "desc" },
       });
+    }
+  );
+
+  // GET /documents/ddt/article-history - Cronologia articoli estratti dai DDT
+  app.get(
+    "/documents/ddt/article-history",
+    {
+      preHandler: authMiddleware,
+      schema: {
+        summary: "Cronologia articoli DDT",
+        description: "Restituisce le righe articolo dei DDT accessibili all'utente",
+        tags: ["documents"],
+        security: [{ bearerAuth: [] }],
+        querystring: {
+          type: "object",
+          properties: {
+            supplierName: { type: "string" },
+            productCode: { type: "string" },
+            fromDate: { type: "string", format: "date" },
+            toDate: { type: "string", format: "date" },
+          },
+        },
+        response: {
+          200: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                documentId: { type: "string" },
+                documentNumber: { type: "string", nullable: true },
+                documentDate: { type: "string", nullable: true },
+                fileName: { type: "string" },
+                supplierName: { type: "string" },
+                recipientName: { type: "string" },
+                productCode: { type: "string", nullable: true },
+                description: { type: "string" },
+                quantity: { type: "number", nullable: true },
+                unitOfMeasure: { type: "string", nullable: true },
+              },
+            },
+          },
+          401: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const userId = request.user?.id;
+      if (!userId) {
+        return reply.status(401).send({ error: "Non autenticato" });
+      }
+
+      const { supplierName, productCode, fromDate, toDate } = request.query as {
+        supplierName?: string;
+        productCode?: string;
+        fromDate?: string;
+        toDate?: string;
+      };
+
+      const documents = await prisma.document.findMany({
+        where: {
+          users: { some: { userId } },
+          documentKind: "ddt",
+          ...(supplierName && { supplierName: { contains: supplierName, mode: "insensitive" } }),
+          ...((fromDate || toDate) && {
+            documentDate: {
+              ...(fromDate && { gte: new Date(fromDate) }),
+              ...(toDate && { lte: new Date(toDate) }),
+            },
+          }),
+        },
+        orderBy: [{ documentDate: "desc" }, { extractionDate: "desc" }],
+      });
+
+      const history = documents.flatMap((document) => {
+        const metadata = (document.metadata || {}) as Record<string, unknown>;
+        const lineItems = Array.isArray(metadata.line_items) ? metadata.line_items : [];
+
+        return lineItems
+          .map((item) => item as Record<string, unknown>)
+          .filter((item) => {
+            if (!productCode) return true;
+            const code = typeof item.product_code === "string" ? item.product_code : "";
+            const description = typeof item.description === "string" ? item.description : "";
+            const needle = productCode.toLowerCase();
+            return code.toLowerCase().includes(needle) || description.toLowerCase().includes(needle);
+          })
+          .map((item) => ({
+            documentId: document.id,
+            documentNumber: document.documentNumber,
+            documentDate: document.documentDate?.toISOString() || null,
+            fileName: document.fileName,
+            supplierName: document.supplierName,
+            recipientName: document.customerName,
+            productCode: typeof item.product_code === "string" ? item.product_code : null,
+            description: typeof item.description === "string" ? item.description : "",
+            quantity: typeof item.quantity === "number" ? item.quantity : null,
+            unitOfMeasure:
+              typeof item.unit_of_measure === "string" ? item.unit_of_measure : null,
+          }));
+      });
+
+      return history;
     }
   );
 
@@ -157,6 +277,8 @@ export async function documentRoutes(app: FastifyInstance) {
               mimeType: { type: "string" },
               fileSize: { type: "number" },
               metadata: { type: "object", additionalProperties: true },
+              documentKind: { type: "string", nullable: true },
+              documentNumber: { type: "string", nullable: true },
               invoiceId: { type: "string", nullable: true },
               documentDate: { type: "string", nullable: true },
               dueDate: { type: "string", nullable: true },
@@ -235,6 +357,8 @@ export async function documentRoutes(app: FastifyInstance) {
             mimeType: { type: "string" },
             fileSize: { type: "number" },
             metadata: { type: "object", additionalProperties: true },
+            documentKind: { type: "string", enum: ["invoice", "ddt"] },
+            documentNumber: { type: "string" },
             extractionDate: { type: "string", format: "date-time" },
           },
           required: ["customerName", "supplierName", "fileName"],
@@ -252,6 +376,8 @@ export async function documentRoutes(app: FastifyInstance) {
               mimeType: { type: "string" },
               fileSize: { type: "number" },
               metadata: { type: "object", additionalProperties: true },
+              documentKind: { type: "string", nullable: true },
+              documentNumber: { type: "string", nullable: true },
               createdAt: { type: "string" },
               updatedAt: { type: "string" },
             },
@@ -278,6 +404,8 @@ export async function documentRoutes(app: FastifyInstance) {
         mimeType = "application/pdf",
         fileSize,
         metadata,
+        documentKind = "invoice",
+        documentNumber,
         extractionDate,
       } = request.body as CreateDocumentBody;
 
@@ -294,6 +422,8 @@ export async function documentRoutes(app: FastifyInstance) {
           mimeType,
           fileSize,
           metadata,
+          documentKind,
+          documentNumber,
           users: {
             create: {
               userId,
@@ -333,6 +463,8 @@ export async function documentRoutes(app: FastifyInstance) {
             mimeType: { type: "string" },
             fileSize: { type: "number" },
             metadata: { type: "object", additionalProperties: true },
+            documentKind: { type: "string", enum: ["invoice", "ddt"] },
+            documentNumber: { type: "string", nullable: true },
           },
         },
         response: {
@@ -348,6 +480,8 @@ export async function documentRoutes(app: FastifyInstance) {
               mimeType: { type: "string" },
               fileSize: { type: "number" },
               metadata: { type: "object", additionalProperties: true },
+              documentKind: { type: "string", nullable: true },
+              documentNumber: { type: "string", nullable: true },
               createdAt: { type: "string" },
               updatedAt: { type: "string" },
             },
@@ -364,7 +498,7 @@ export async function documentRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params as DocumentParams;
       const userId = request.user?.id;
-      const { customerName, supplierName, fileName, mimeType, fileSize, metadata } =
+      const { customerName, supplierName, fileName, mimeType, fileSize, metadata, documentKind, documentNumber } =
         request.body as UpdateDocumentBody;
 
       // Verifica che l'utente abbia accesso editor/owner
@@ -407,6 +541,8 @@ export async function documentRoutes(app: FastifyInstance) {
             ...(mimeType && { mimeType }),
             ...(fileSize !== undefined && { fileSize }),
             ...(metadata !== undefined && { metadata }),
+            ...(documentKind && { documentKind }),
+            ...(documentNumber !== undefined && { documentNumber }),
             ...(filePath && { filePath }),
           },
         });
@@ -567,6 +703,12 @@ export async function documentRoutes(app: FastifyInstance) {
         description: "Restituisce la struttura gerarchica dei documenti per il file explorer",
         tags: ["documents"],
         security: [{ bearerAuth: [] }],
+        querystring: {
+          type: "object",
+          properties: {
+            documentKind: { type: "string", enum: ["invoice", "ddt"] },
+          },
+        },
         response: {
           200: {
             type: "object",
@@ -582,6 +724,7 @@ export async function documentRoutes(app: FastifyInstance) {
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const userId = request.user?.id;
+      const { documentKind } = request.query as { documentKind?: DocumentKind };
 
       if (!userId) {
         return reply.status(401).send({ error: "Non autenticato" });
@@ -591,6 +734,7 @@ export async function documentRoutes(app: FastifyInstance) {
       const documents = await prisma.document.findMany({
         where: {
           users: { some: { userId } },
+          ...(documentKind && { documentKind }),
         },
         orderBy: [
           { supplierName: "asc" },
@@ -734,44 +878,57 @@ export async function documentRoutes(app: FastifyInstance) {
       }
 
       // Extract denormalized fields from metadata
-      const invoice = metadata as Record<string, unknown>;
+      const metadataRecord = metadata as Record<string, unknown>;
+      const documentKind: DocumentKind =
+        metadataRecord.document_kind === "ddt" || metadataRecord.documentKind === "ddt"
+          ? "ddt"
+          : "invoice";
       let documentDate: Date | null = null;
       let dueDate: Date | null = null;
       let totalAmount: number | null = null;
       let invoiceId: string | null = null;
+      let documentNumber: string | null = null;
       let supplierName: string | undefined;
       let customerName: string | undefined;
 
-      if (typeof invoice.document_date === "string") {
-        const parsed = new Date(invoice.document_date);
+      if (typeof metadataRecord.document_date === "string") {
+        const parsed = new Date(metadataRecord.document_date);
         if (!isNaN(parsed.getTime())) {
           documentDate = parsed;
         }
       }
 
-      const paymentDetails = invoice.payment_details as Record<string, unknown> | undefined;
-      if (paymentDetails && typeof paymentDetails.due_date === "string") {
+      const paymentDetails = metadataRecord.payment_details as Record<string, unknown> | undefined;
+      if (documentKind === "invoice" && paymentDetails && typeof paymentDetails.due_date === "string") {
         const parsed = new Date(paymentDetails.due_date);
         if (!isNaN(parsed.getTime())) {
           dueDate = parsed;
         }
       }
 
-      const totals = invoice.totals as Record<string, unknown> | undefined;
-      if (totals && typeof totals.total_amount === "number") {
+      const totals = metadataRecord.totals as Record<string, unknown> | undefined;
+      if (documentKind === "invoice" && totals && typeof totals.total_amount === "number") {
         totalAmount = totals.total_amount;
       }
 
-      if (typeof invoice.invoice_id === "string") {
-        invoiceId = invoice.invoice_id;
+      if (documentKind === "invoice" && typeof metadataRecord.invoice_id === "string") {
+        invoiceId = metadataRecord.invoice_id;
+        documentNumber = metadataRecord.invoice_id;
       }
 
-      const supplier = invoice.supplier as Record<string, unknown> | undefined;
+      if (documentKind === "ddt" && typeof metadataRecord.ddt_id === "string") {
+        documentNumber = metadataRecord.ddt_id;
+      }
+
+      const supplier = metadataRecord.supplier as Record<string, unknown> | undefined;
       if (supplier && typeof supplier.name === "string") {
         supplierName = supplier.name;
       }
 
-      const customer = invoice.customer as Record<string, unknown> | undefined;
+      const customer =
+        documentKind === "ddt"
+          ? (metadataRecord.recipient as Record<string, unknown> | undefined)
+          : (metadataRecord.customer as Record<string, unknown> | undefined);
       if (customer && typeof customer.name === "string") {
         customerName = customer.name;
       }
@@ -799,6 +956,8 @@ export async function documentRoutes(app: FastifyInstance) {
           dueDate,
           totalAmount,
           invoiceId,
+          documentKind,
+          documentNumber,
           ...(supplierName && { supplierName }),
           ...(customerName && { customerName }),
           ...(filePath && { filePath }),

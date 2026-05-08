@@ -4,6 +4,7 @@ import { Folder, FileText, Loader2, PanelLeftClose, PanelLeft } from 'lucide-rea
 import { FolderTree } from './FolderTree';
 import { Breadcrumb } from './Breadcrumb';
 import type { TreeNode, Document } from '@/api/documents';
+import type { DocumentKind } from '@/api/documents';
 import { getDocumentsTree } from '@/api/documents';
 import { formatDate, formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
@@ -21,7 +22,11 @@ function findNodeByPath(tree: TreeNode, path: string): TreeNode | null {
   return null;
 }
 
-export function FileExplorer() {
+interface FileExplorerProps {
+  documentKind?: DocumentKind;
+}
+
+export function FileExplorer({ documentKind }: FileExplorerProps) {
   const navigate = useNavigate();
   const [tree, setTree] = useState<TreeNode | null>(null);
   const [currentPath, setCurrentPath] = useState('/');
@@ -33,7 +38,7 @@ export function FileExplorer() {
     async function loadTree() {
       try {
         setIsLoading(true);
-        const data = await getDocumentsTree();
+        const data = await getDocumentsTree({ documentKind });
         setTree(data);
       } catch (err) {
         setError('Errore nel caricamento dei documenti');
@@ -44,7 +49,7 @@ export function FileExplorer() {
     }
 
     loadTree();
-  }, []);
+  }, [documentKind]);
 
   const handleSelect = (path: string, document?: Document) => {
     setCurrentPath(path);

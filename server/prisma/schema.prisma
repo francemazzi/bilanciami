@@ -83,6 +83,8 @@ model Document {
   metadata       Json?
 
   // Campi denormalizzati per query/ordinamento
+  documentKind  String?   @default("invoice") // "invoice" | "ddt"
+  documentNumber String?  // Numero documento generico (fattura o DDT)
   invoiceId      String?   // Numero fattura estratto
   documentDate   DateTime? // Data documento
   dueDate        DateTime? // Data scadenza pagamento
@@ -107,6 +109,8 @@ model Document {
   @@index([customerName, supplierName])
   @@index([dueDate])
   @@index([supplierName])
+  @@index([documentKind])
+  @@index([documentNumber])
   @@index([followUpStatus])
   @@map("documents")
 }

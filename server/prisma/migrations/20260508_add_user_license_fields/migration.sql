@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "licenseTier" TEXT NOT NULL DEFAULT 'free';
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "licenseExpiresAt" TIMESTAMP(3);

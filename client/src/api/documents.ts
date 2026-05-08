@@ -1,6 +1,7 @@
 import { apiRequest } from './client';
 
 export type FollowUpStatus = 'gestita' | 'richiesta_saldo' | 'sollecitata' | 'da_gestire';
+export type DocumentKind = 'invoice' | 'ddt';
 
 export interface Document {
   id: string;
@@ -12,6 +13,8 @@ export interface Document {
   mimeType: string;
   fileSize: number | null;
   metadata: Record<string, unknown> | null;
+  documentKind: DocumentKind | null;
+  documentNumber: string | null;
   invoiceId: string | null;
   documentDate: string | null;
   dueDate: string | null;
@@ -35,6 +38,7 @@ export interface TreeNode {
 export interface DocumentsListParams {
   customerName?: string;
   supplierName?: string;
+  documentKind?: DocumentKind;
   fromDate?: string;
   toDate?: string;
 }
@@ -43,6 +47,7 @@ export async function getDocuments(params?: DocumentsListParams): Promise<Docume
   const searchParams = new URLSearchParams();
   if (params?.customerName) searchParams.set('customerName', params.customerName);
   if (params?.supplierName) searchParams.set('supplierName', params.supplierName);
+  if (params?.documentKind) searchParams.set('documentKind', params.documentKind);
   if (params?.fromDate) searchParams.set('fromDate', params.fromDate);
   if (params?.toDate) searchParams.set('toDate', params.toDate);
 
@@ -54,8 +59,44 @@ export async function getDocument(id: string): Promise<Document> {
   return apiRequest<Document>(`/documents/${id}`);
 }
 
-export async function getDocumentsTree(): Promise<TreeNode> {
-  return apiRequest<TreeNode>('/documents/tree');
+export async function getDocumentsTree(params?: Pick<DocumentsListParams, 'documentKind'>): Promise<TreeNode> {
+  const searchParams = new URLSearchParams();
+  if (params?.documentKind) searchParams.set('documentKind', params.documentKind);
+  const query = searchParams.toString();
+  return apiRequest<TreeNode>(`/documents/tree${query ? `?${query}` : ''}`);
+}
+
+export interface DdtArticleHistoryItem {
+  documentId: string;
+  documentNumber: string | null;
+  documentDate: string | null;
+  fileName: string;
+  supplierName: string;
+  recipientName: string;
+  productCode: string | null;
+  description: string;
+  quantity: number | null;
+  unitOfMeasure: string | null;
+}
+
+export interface DdtArticleHistoryParams {
+  supplierName?: string;
+  productCode?: string;
+  fromDate?: string;
+  toDate?: string;
+}
+
+export async function getDdtArticleHistory(
+  params?: DdtArticleHistoryParams
+): Promise<DdtArticleHistoryItem[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.supplierName) searchParams.set('supplierName', params.supplierName);
+  if (params?.productCode) searchParams.set('productCode', params.productCode);
+  if (params?.fromDate) searchParams.set('fromDate', params.fromDate);
+  if (params?.toDate) searchParams.set('toDate', params.toDate);
+
+  const query = searchParams.toString();
+  return apiRequest<DdtArticleHistoryItem[]>(`/documents/ddt/article-history${query ? `?${query}` : ''}`);
 }
 
 export async function updateDocumentMetadata(

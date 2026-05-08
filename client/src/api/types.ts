@@ -127,14 +127,60 @@ export interface Invoice {
   notes?: string[];
 }
 
+export interface DdtLineItem {
+  line_number: number;
+  product_code?: string | null;
+  description: string;
+  quantity?: number | null;
+  unit_of_measure?: string | null;
+  order_reference?: string | null;
+  lot?: string | null;
+  destination?: string | null;
+}
+
+export interface DdtDocument {
+  file_name: string;
+  document_kind: 'ddt';
+  ddt_id: string;
+  document_type: string;
+  document_date: string;
+  supplier: Supplier;
+  recipient: Customer;
+  delivery_destination?: {
+    name?: string | null;
+    address?: Address | null;
+  } | null;
+  transport_details?: {
+    reason?: string | null;
+    goods_appearance?: string | null;
+    packages?: number | null;
+    gross_weight?: number | null;
+    net_weight?: number | null;
+    volume?: number | null;
+    transport_by?: string | null;
+    freight_terms?: string | null;
+    transport_datetime?: string | null;
+    carrier?: string | null;
+  } | null;
+  line_items: DdtLineItem[];
+  notes?: string[];
+}
+
 // API Response types
 export interface ExtractionResult {
   file_name: string;
   success: boolean;
+  documentKind?: 'invoice' | 'ddt';
   invoice?: Invoice | Record<string, never>;
+  ddt?: DdtDocument | Record<string, never>;
   error?: string;
   errors?: string[];
   confidence?: number;
+  classification?: {
+    documentKind: 'invoice' | 'ddt';
+    confidence: number;
+    reason?: string;
+  };
 }
 
 export interface ExtractionResponse {
@@ -174,6 +220,8 @@ export interface Document {
   mimeType: string;
   fileSize: number;
   metadata?: Record<string, unknown>;
+  documentKind?: 'invoice' | 'ddt' | null;
+  documentNumber?: string | null;
   createdAt: string;
   updatedAt: string;
 }

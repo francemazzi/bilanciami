@@ -2,13 +2,15 @@ import { Queue, Worker, type Job } from "bullmq";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { getRedisConnectionOptions } from "../lib/redis.js";
-import { extractInvoice } from "../agents/invoice-graph.js";
+import { extractDocument } from "../agents/document-extraction.js";
 import { prisma } from "../lib/prisma.js";
 import { savePdf } from "../services/storage.service.js";
 import { generateDocumentPath } from "../lib/document-path.js";
 import { Prisma } from "../../generated/prisma/client";
 import type { LLMSettings } from "../types/llm-provider.js";
 import type { Invoice } from "../types/invoice.js";
+import type { DdtDocument } from "../types/ddt.js";
+import type { DocumentKind, DocumentClassification } from "../types/document.js";
 
 const QUEUE_NAME = "invoice-extraction";
 const TEMP_DIR = "/tmp/bilanciami-jobs";
@@ -25,9 +27,12 @@ interface ExtractionJobData {
 interface ExtractionResult {
   file_name: string;
   success: boolean;
+  documentKind?: DocumentKind;
   invoice?: Invoice;
+  ddt?: DdtDocument;
   errors?: string[];
   confidence?: number;
+  classification?: DocumentClassification;
   document_id?: string;
 }
 
@@ -124,43 +129,72 @@ export function startExtractionWorker(): Worker {
 
           console.log(`[Worker] Processing file: ${fileName} (${i + 1}/${fileNames.length})`);
 
-          const extractionResult = await extractInvoice(buffer, fileName, llmSettings);
+          const extractionResult = await extractDocument(buffer, fileName, llmSettings);
+          const extractedDocument = extractionResult.invoice || extractionResult.ddt;
 
           const result: ExtractionResult = {
             file_name: fileName,
-            success: !!extractionResult.invoice,
+            success: !!extractedDocument,
+            documentKind: extractionResult.documentKind,
             invoice: extractionResult.invoice || undefined,
+            ddt: extractionResult.ddt || undefined,
             errors:
               extractionResult.errors.length > 0
                 ? extractionResult.errors
                 : undefined,
             confidence: extractionResult.confidence,
+            classification: extractionResult.classification,
           };
 
           // Save document to database
-          if (extractionResult.invoice) {
+          if (extractedDocument) {
             try {
-              const invoice = extractionResult.invoice;
-              const supplierName = invoice.supplier?.name || "Unknown Supplier";
-              const customerName = invoice.customer?.name || "Unknown Customer";
+              const documentKind = extractionResult.documentKind;
+              const supplierName =
+                documentKind === "ddt"
+                  ? extractionResult.ddt?.supplier?.name || "Unknown Supplier"
+                  : extractionResult.invoice?.supplier?.name || "Unknown Supplier";
+              const customerName =
+                documentKind === "ddt"
+                  ? extractionResult.ddt?.recipient?.name ||
+                    extractionResult.ddt?.delivery_destination?.name ||
+                    "Unknown Recipient"
+                  : extractionResult.invoice?.customer?.name || "Unknown Customer";
               const extractionDate = new Date();
               const filePath = generateDocumentPath(extractionDate, customerName, supplierName);
 
               let documentDate: Date | null = null;
               let dueDate: Date | null = null;
+              let documentNumber: string | null = null;
+              let totalAmount: number | null = null;
+              let invoiceId: string | null = null;
 
-              if (invoice.document_date) {
-                const parsed = new Date(invoice.document_date);
+              const extractedDate =
+                documentKind === "ddt"
+                  ? extractionResult.ddt?.document_date
+                  : extractionResult.invoice?.document_date;
+
+              if (extractedDate) {
+                const parsed = new Date(extractedDate);
                 if (!isNaN(parsed.getTime())) {
                   documentDate = parsed;
                 }
               }
 
-              if (invoice.payment_details?.due_date) {
-                const parsed = new Date(invoice.payment_details.due_date);
-                if (!isNaN(parsed.getTime())) {
-                  dueDate = parsed;
+              if (documentKind === "invoice" && extractionResult.invoice) {
+                const invoice = extractionResult.invoice;
+                invoiceId = invoice.invoice_id || null;
+                documentNumber = invoice.invoice_id || null;
+                totalAmount = invoice.totals?.total_amount ?? null;
+
+                if (invoice.payment_details?.due_date) {
+                  const parsed = new Date(invoice.payment_details.due_date);
+                  if (!isNaN(parsed.getTime())) {
+                    dueDate = parsed;
+                  }
                 }
+              } else if (extractionResult.ddt) {
+                documentNumber = extractionResult.ddt.ddt_id || null;
               }
 
               const document = await prisma.document.create({
@@ -172,15 +206,17 @@ export function startExtractionWorker(): Worker {
                   fileName,
                   mimeType: "application/pdf",
                   fileSize: buffer.length,
-                  metadata: invoice as unknown as Prisma.InputJsonValue,
-                  invoiceId: invoice.invoice_id || null,
+                  metadata: extractedDocument as unknown as Prisma.InputJsonValue,
+                  documentKind,
+                  documentNumber,
+                  invoiceId,
                   documentDate,
                   dueDate,
-                  totalAmount: invoice.totals?.total_amount ?? null,
+                  totalAmount,
                 },
               });
 
-              const pdfStoragePath = await savePdf(buffer, userId, document.id, fileName);
+              const pdfStoragePath = await savePdf(buffer, userId, document.id, fileName, documentKind);
 
               await prisma.document.update({
                 where: { id: document.id },

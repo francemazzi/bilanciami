@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Upload, FolderOpen, LogOut, User, Settings, ChevronDown, Menu, X, Shield, Scale } from 'lucide-react';
+import { Upload, FolderOpen, LogOut, User, Settings, ChevronDown, Menu, X, Shield, Scale, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth.store';
 import { isAdmin } from '@/components/auth/AdminRoute';
@@ -18,6 +18,7 @@ const navItems = [
   { to: '/', label: 'Home', icon: Scale },
   { to: '/upload', label: 'Carica PDF', icon: Upload },
   { to: '/documents', label: 'Documenti', icon: FolderOpen },
+  { to: '/ddt', label: 'DDT', icon: ClipboardList },
 ];
 
 export function Header() {

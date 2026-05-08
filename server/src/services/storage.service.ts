@@ -2,27 +2,34 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads", "documents");
+type StorageDocumentKind = "invoice" | "ddt";
 
 export async function ensureUploadDir(): Promise<void> {
   await fs.mkdir(UPLOAD_DIR, { recursive: true });
 }
 
-export function generateStoragePath(userId: string, documentId: string, fileName: string): string {
+export function generateStoragePath(
+  userId: string,
+  documentId: string,
+  fileName: string,
+  documentKind: StorageDocumentKind = "invoice"
+): string {
   const ext = path.extname(fileName) || ".pdf";
   const baseName = path.basename(fileName, ext);
   const safeName = baseName.replace(/[^a-zA-Z0-9-_]/g, "_");
-  return path.join(userId, documentId, `${safeName}${ext}`);
+  return path.join(userId, documentKind, documentId, `${safeName}${ext}`);
 }
 
 export async function savePdf(
   buffer: Buffer,
   userId: string,
   documentId: string,
-  fileName: string
+  fileName: string,
+  documentKind: StorageDocumentKind = "invoice"
 ): Promise<string> {
   await ensureUploadDir();
 
-  const relativePath = generateStoragePath(userId, documentId, fileName);
+  const relativePath = generateStoragePath(userId, documentId, fileName, documentKind);
   const fullPath = path.join(UPLOAD_DIR, relativePath);
 
   // Create directory structure

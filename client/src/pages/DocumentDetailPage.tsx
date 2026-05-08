@@ -18,6 +18,8 @@ import 'react-pdf/dist/Page/TextLayer.css';
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface Invoice {
+  document_kind?: string;
+  ddt_id?: string;
   invoice_id?: string;
   document_type?: string;
   document_date?: string;
@@ -46,8 +48,26 @@ interface Invoice {
     };
     pec?: string;
   };
+  recipient?: Invoice['customer'];
+  delivery_destination?: {
+    name?: string;
+    address?: NonNullable<Invoice['customer']>['address'];
+  };
+  transport_details?: {
+    reason?: string;
+    goods_appearance?: string;
+    packages?: number;
+    gross_weight?: number;
+    net_weight?: number;
+    volume?: number;
+    transport_by?: string;
+    freight_terms?: string;
+    transport_datetime?: string;
+    carrier?: string;
+  };
   line_items?: Array<{
     line_number?: number;
+    product_code?: string;
     description?: string;
     quantity?: number;
     unit_of_measure?: string;
@@ -141,12 +161,12 @@ export function DocumentDetailPage() {
 
   const handleDelete = async () => {
     if (!id) return;
-    if (!window.confirm('Sei sicuro di voler eliminare questa fattura? L\'operazione non è reversibile.')) return;
+    if (!window.confirm('Sei sicuro di voler eliminare questo documento? L\'operazione non è reversibile.')) return;
 
     try {
       setIsDeleting(true);
       await deleteDocument(id);
-      navigate('/documents');
+      navigate(document?.documentKind === 'ddt' ? '/ddt' : '/documents');
     } catch (err) {
       console.error('Failed to delete:', err);
       alert('Errore nell\'eliminazione del documento');
@@ -290,6 +310,10 @@ export function DocumentDetailPage() {
   }
 
   const invoice = (isEditing ? editedMetadata : document.metadata) as Invoice || {};
+  const isDdt = document.documentKind === 'ddt' || invoice.document_kind === 'ddt';
+  const recipient = isDdt ? invoice.recipient : invoice.customer;
+  const backPath = isDdt ? '/ddt' : '/documents';
+  const documentNumber = isDdt ? invoice.ddt_id : invoice.invoice_id;
   const pdfUrl = document.pdfStoragePath ? getDocumentPdfUrl(document.id) : null;
 
   return (
@@ -297,12 +321,12 @@ export function DocumentDetailPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/documents')}>
+          <Button variant="ghost" size="sm" onClick={() => navigate(backPath)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-0 flex-1">
             <h1 className="text-xl md:text-2xl font-bold truncate">
-              Fattura {invoice.invoice_id || document.fileName}
+              {isDdt ? 'DDT' : 'Fattura'} {documentNumber || document.fileName}
             </h1>
             <p className="text-sm text-muted-foreground truncate">
               {document.supplierName} - {document.customerName}
@@ -341,19 +365,21 @@ export function DocumentDetailPage() {
                 <span className="hidden sm:inline">{document.done ? 'Fatto' : 'Da fare'}</span>
               </Button>
               <ExportDropdown onExport={handleExport} />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleSollecito}
-                disabled={isSendingSollecito}
-              >
-                {isSendingSollecito ? (
-                  <Loader2 className="h-4 w-4 animate-spin sm:mr-2" />
-                ) : (
-                  <Mail className="h-4 w-4 sm:mr-2" />
-                )}
-                <span className="hidden sm:inline">Sollecito</span>
-              </Button>
+              {!isDdt && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleSollecito}
+                  disabled={isSendingSollecito}
+                >
+                  {isSendingSollecito ? (
+                    <Loader2 className="h-4 w-4 animate-spin sm:mr-2" />
+                  ) : (
+                    <Mail className="h-4 w-4 sm:mr-2" />
+                  )}
+                  <span className="hidden sm:inline">Sollecito</span>
+                </Button>
+              )}
               <Button size="sm" onClick={() => setIsEditing(true)}>
                 <Edit className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Modifica</span>
@@ -460,9 +486,9 @@ export function DocumentDetailPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <Field
-                label="Numero fattura"
-                value={invoice.invoice_id}
-                path="invoice_id"
+                label={isDdt ? "Numero DDT" : "Numero fattura"}
+                value={documentNumber}
+                path={isDdt ? "ddt_id" : "invoice_id"}
                 isEditing={isEditing}
                 onChange={updateField}
               />
@@ -537,52 +563,52 @@ export function DocumentDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Cliente */}
+          {/* Cliente / destinatario */}
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-lg">Cliente</CardTitle>
+              <CardTitle className="text-lg">{isDdt ? 'Destinatario' : 'Cliente'}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <Field
                 label="Nome"
-                value={invoice.customer?.name}
-                path="customer.name"
+                value={recipient?.name}
+                path={isDdt ? "recipient.name" : "customer.name"}
                 isEditing={isEditing}
                 onChange={updateField}
               />
               <Field
                 label="P.IVA"
-                value={invoice.customer?.vat_number}
-                path="customer.vat_number"
+                value={recipient?.vat_number}
+                path={isDdt ? "recipient.vat_number" : "customer.vat_number"}
                 isEditing={isEditing}
                 onChange={updateField}
               />
               <Field
                 label="Indirizzo"
-                value={invoice.customer?.address?.street}
-                path="customer.address.street"
+                value={recipient?.address?.street}
+                path={isDdt ? "recipient.address.street" : "customer.address.street"}
                 isEditing={isEditing}
                 onChange={updateField}
               />
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <Field
                   label="Città"
-                  value={invoice.customer?.address?.city}
-                  path="customer.address.city"
+                  value={recipient?.address?.city}
+                  path={isDdt ? "recipient.address.city" : "customer.address.city"}
                   isEditing={isEditing}
                   onChange={updateField}
                 />
                 <Field
                   label="Prov"
-                  value={invoice.customer?.address?.province}
-                  path="customer.address.province"
+                  value={recipient?.address?.province}
+                  path={isDdt ? "recipient.address.province" : "customer.address.province"}
                   isEditing={isEditing}
                   onChange={updateField}
                 />
                 <Field
                   label="CAP"
-                  value={invoice.customer?.address?.postal_code}
-                  path="customer.address.postal_code"
+                  value={recipient?.address?.postal_code}
+                  path={isDdt ? "recipient.address.postal_code" : "customer.address.postal_code"}
                   isEditing={isEditing}
                   onChange={updateField}
                 />
@@ -590,6 +616,77 @@ export function DocumentDetailPage() {
             </CardContent>
           </Card>
 
+          {isDdt ? (
+            <Card>
+              <CardHeader className="py-3">
+                <CardTitle className="text-lg">Trasporto</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Field
+                  label="Causale"
+                  value={invoice.transport_details?.reason}
+                  path="transport_details.reason"
+                  isEditing={isEditing}
+                  onChange={updateField}
+                />
+                <Field
+                  label="Aspetto beni"
+                  value={invoice.transport_details?.goods_appearance}
+                  path="transport_details.goods_appearance"
+                  isEditing={isEditing}
+                  onChange={updateField}
+                />
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <Field
+                    label="Colli"
+                    value={invoice.transport_details?.packages}
+                    path="transport_details.packages"
+                    type="number"
+                    isEditing={isEditing}
+                    onChange={updateField}
+                  />
+                  <Field
+                    label="Peso lordo"
+                    value={invoice.transport_details?.gross_weight}
+                    path="transport_details.gross_weight"
+                    type="number"
+                    isEditing={isEditing}
+                    onChange={updateField}
+                  />
+                  <Field
+                    label="Peso netto"
+                    value={invoice.transport_details?.net_weight}
+                    path="transport_details.net_weight"
+                    type="number"
+                    isEditing={isEditing}
+                    onChange={updateField}
+                  />
+                </div>
+                <Field
+                  label="Trasporto a cura"
+                  value={invoice.transport_details?.transport_by}
+                  path="transport_details.transport_by"
+                  isEditing={isEditing}
+                  onChange={updateField}
+                />
+                <Field
+                  label="Porto"
+                  value={invoice.transport_details?.freight_terms}
+                  path="transport_details.freight_terms"
+                  isEditing={isEditing}
+                  onChange={updateField}
+                />
+                <Field
+                  label="Data e ora trasporto"
+                  value={invoice.transport_details?.transport_datetime}
+                  path="transport_details.transport_datetime"
+                  isEditing={isEditing}
+                  onChange={updateField}
+                />
+              </CardContent>
+            </Card>
+          ) : (
+            <>
           {/* Totali */}
           <Card>
             <CardHeader className="py-3">
@@ -656,8 +753,10 @@ export function DocumentDetailPage() {
               />
             </CardContent>
           </Card>
+            </>
+          )}
 
-          {/* Righe fattura */}
+          {/* Righe documento */}
           {invoice.line_items && invoice.line_items.length > 0 && (
             <Card>
               <CardHeader className="py-3">
@@ -669,8 +768,17 @@ export function DocumentDetailPage() {
                     <div key={index} className="p-2 bg-gray-50 rounded text-sm">
                       <p className="font-medium">{item.description}</p>
                       <p className="text-gray-600">
-                        {item.quantity} {item.unit_of_measure} x {formatCurrency(item.unit_price || 0)} = {formatCurrency(item.line_total || 0)}
-                        {item.vat_rate && ` (IVA ${item.vat_rate}%)`}
+                        {isDdt ? (
+                          <>
+                            {item.product_code && `${item.product_code} - `}
+                            {item.quantity ?? '-'} {item.unit_of_measure || ''}
+                          </>
+                        ) : (
+                          <>
+                            {item.quantity} {item.unit_of_measure} x {formatCurrency(item.unit_price || 0)} = {formatCurrency(item.line_total || 0)}
+                            {item.vat_rate && ` (IVA ${item.vat_rate}%)`}
+                          </>
+                        )}
                       </p>
                     </div>
                   ))}
@@ -688,7 +796,7 @@ export function DocumentDetailPage() {
               <textarea
                 value={userNotes}
                 onChange={(e) => setUserNotes(e.target.value)}
-                placeholder="Aggiungi note su questa fattura..."
+                placeholder={isDdt ? "Aggiungi note su questo DDT..." : "Aggiungi note su questa fattura..."}
                 rows={3}
                 className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
               />
