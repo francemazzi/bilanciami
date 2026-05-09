@@ -6,10 +6,19 @@ import type { LLMSettings } from "../../types/llm-provider.js";
  * Tipi di intento riconosciuti dal classificatore
  */
 export type ChatIntent =
-  | "query_data" // Richiede dati dal database
-  | "analyze_data" // Analisi complessa
+  | "query_data" // Richiede dati dal database (fatture)
+  | "analyze_data" // Analisi complessa (fatture)
+  | "ddt_query" // Domande/analisi su DDT, articoli ordinati, consegne
   | "simple_answer" // Risposta senza DB
   | "unclear"; // Intento non chiaro
+
+/**
+ * Risultato dell'invocazione di un tool DDT
+ */
+export interface ToolResult {
+  toolName: string;
+  data: unknown;
+}
 
 /**
  * Query SQL generata con metadati di sicurezza
@@ -79,6 +88,12 @@ export const ChatAgentState = Annotation.Root({
 
   // Risultato della query
   queryResult: Annotation<QueryResult | null>({
+    default: () => null,
+    reducer: (_, newVal) => newVal,
+  }),
+
+  // Risultato del tool DDT (branch tool-calling)
+  toolResult: Annotation<ToolResult | null>({
     default: () => null,
     reducer: (_, newVal) => newVal,
   }),

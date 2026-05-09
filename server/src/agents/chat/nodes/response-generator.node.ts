@@ -32,6 +32,17 @@ Rispondi SEMPRE in italiano, in modo chiaro e professionale.
 - Usa sempre il simbolo € dopo il numero
 - Formatta con separatore migliaia: 1.234,56 €
 
+### Formattazione date:
+- Usa il formato italiano: dd/MM/yyyy
+
+### Risultati di analisi DDT (tool DDT):
+- I dati provengono da tool dedicati che analizzano i Documenti di Trasporto e i loro line_items
+- Presenta SOLO i dati ricevuti dal tool, niente di più
+- Per liste/ranking usa tabelle markdown con colonne pertinenti (es: rank, prodotto, codice, quantità totale, fornitore, ultima consegna)
+- Quantità: mostra come numero con eventuale unità di misura (es: "120 PZ", "45,5 KG")
+- Per analisi periodo: evidenzia il trend (↑ in aumento, ↓ in calo, → stabile) e la variazione percentuale rispetto al periodo precedente
+- Per storico articolo: ordina per data desc e mostra fornitore + DDT di riferimento
+
 ### Se l'operazione è stata annullata:
 - Conferma che non è stata eseguita
 - Chiedi se puoi aiutare in altro modo
@@ -60,10 +71,12 @@ export async function responseGeneratorNode(
     const userName = state.userName || "utente";
     let contextInfo = `Stai rispondendo all'utente: ${userName}. Mostra SOLO i dati di questo utente.\n\n`;
 
-    console.log(`[RESPONSE] Intent: ${state.intent}, hasQueryResult: ${!!state.queryResult}, errors: ${JSON.stringify(state.errors)}, hasSqlQuery: ${!!state.sqlQuery}`);
+    console.log(`[RESPONSE] Intent: ${state.intent}, hasQueryResult: ${!!state.queryResult}, hasToolResult: ${!!state.toolResult}, errors: ${JSON.stringify(state.errors)}, hasSqlQuery: ${!!state.sqlQuery}`);
 
     if (state.humanApprovalStatus === "rejected") {
       contextInfo += "L'utente ha annullato l'operazione richiesta.";
+    } else if (state.toolResult) {
+      contextInfo += `Risultato analisi DDT (tool: ${state.toolResult.toolName}):\n\`\`\`json\n${JSON.stringify(state.toolResult.data, null, 2)}\n\`\`\`\n\nFormatta questi dati in italiano per l'utente seguendo le linee guida sopra (tabelle markdown per liste, trend e variazioni se presenti, formato data dd/MM/yyyy).`;
     } else if (state.queryResult) {
       const { data, rowCount, executionTime } = state.queryResult;
       contextInfo += `Risultati query (${rowCount} righe, ${executionTime}ms):\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;

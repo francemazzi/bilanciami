@@ -4,6 +4,7 @@ import { intentClassifierNode } from "./nodes/intent-classifier.node.js";
 import { sqlGeneratorNode } from "./nodes/sql-generator.node.js";
 import { sqlExecutorNode } from "./nodes/sql-executor.node.js";
 import { responseGeneratorNode } from "./nodes/response-generator.node.js";
+import { ddtToolCallingNode } from "./nodes/ddt-tool-calling.node.js";
 import type { LLMSettings } from "../../types/llm-provider.js";
 
 // Checkpointer per persistenza stato (Human-in-the-Loop)
@@ -14,11 +15,13 @@ const checkpointer = new MemorySaver();
  */
 function routeByIntent(
   state: ChatAgentStateType
-): "generateSQL" | "generateResponse" {
+): "generateSQL" | "ddtToolCalling" | "generateResponse" {
   switch (state.intent) {
     case "query_data":
     case "analyze_data":
       return "generateSQL";
+    case "ddt_query":
+      return "ddtToolCalling";
     case "simple_answer":
     case "unclear":
     default:
@@ -81,6 +84,7 @@ export function createChatAgentGraph() {
     .addNode("classify", intentClassifierNode)
     .addNode("generateSQL", sqlGeneratorNode)
     .addNode("executeSQL", sqlExecutorNode)
+    .addNode("ddtToolCalling", ddtToolCallingNode)
     .addNode("generateResponse", responseGeneratorNode)
     .addNode("waitApproval", waitApprovalNode)
 
@@ -88,6 +92,7 @@ export function createChatAgentGraph() {
     .addEdge(START, "classify")
     .addConditionalEdges("classify", routeByIntent, {
       generateSQL: "generateSQL",
+      ddtToolCalling: "ddtToolCalling",
       generateResponse: "generateResponse",
     })
     .addConditionalEdges("generateSQL", routeByApproval, {
@@ -96,6 +101,7 @@ export function createChatAgentGraph() {
       waitApproval: "waitApproval",
     })
     .addEdge("executeSQL", "generateResponse")
+    .addEdge("ddtToolCalling", "generateResponse")
     .addEdge("waitApproval", END) // Termina qui, aspetta approvazione
     .addEdge("generateResponse", END);
 
